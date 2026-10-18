@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>교실 보드 연결 시험</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#2B6CE6;--green:#22A86B;--green-soft:#E1F6EA;--red:#E5484D;--red-soft:#FFE9E9;--yellow-soft:#FFF6CF;--ink:#1E2433;--muted:#6B7385;--line:#E3E7EF}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Noto Sans KR',system-ui,sans-serif;color:var(--ink);background:#DCE8FB;background-image:linear-gradient(rgba(43,108,230,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(43,108,230,.1) 1px,transparent 1px);background-size:32px 32px}
+main{max-width:860px;margin:0 auto;padding:24px 16px 60px}
+h1{font-family:'Jua',sans-serif;font-weight:400;font-size:40px;margin:8px 0 4px}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:#fff;border-radius:22px;box-shadow:0 10px 30px rgba(20,30,60,.12);padding:20px 22px;margin-bottom:16px}
+.card h2{font-family:'Jua',sans-serif;font-weight:400;font-size:26px;margin:0 0 12px;display:flex;align-items:center;gap:10px}
+.card h2 .n{width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-family:'Noto Sans KR';font-size:16px;font-weight:900}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.row:last-child{border:0}
+.row .t{flex:1;min-width:200px;font-weight:700}
+.row .t small{display:block;font-weight:500;color:var(--muted);font-size:13px}
+.res{padding:5px 12px;border-radius:999px;font-weight:700;font-size:14px;background:#F2F5FA;color:var(--muted)}
+.res.ok{background:var(--green-soft);color:#14774A}.res.no{background:var(--red-soft);color:var(--red)}.res.warn{background:var(--yellow-soft);color:#8A6400}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:10px 16px;font-weight:700;background:var(--blue);color:#fff}
+button.ghost{background:#F2F5FA;color:var(--ink)}
+textarea{width:100%;min-height:150px;border-radius:14px;border:2px solid var(--line);padding:12px;font-family:Consolas,monospace;font-size:13px}
+.meter{width:160px;height:14px;border-radius:99px;background:#EEF1F6;overflow:hidden}.meter i{display:block;height:100%;width:0;background:var(--green);transition:width .1s}
+details{margin-top:6px}
+summary{cursor:pointer;font-weight:700;color:var(--blue)}
+ol{padding-left:22px;line-height:1.8}
+code,pre{background:#F2F5FA;border-radius:8px;font-family:Consolas,monospace;font-size:13px}
+code{padding:1px 6px}
+pre{padding:12px;overflow:auto;white-space:pre}
+.big{font-size:20px;font-weight:900}
+.note{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.6}
+.sum{font-family:'Jua',sans-serif;font-size:24px;padding:16px;border-radius:16px;text-align:center}
+</style>
+</head>
+<body>
+<main>
+  <h1>교실 보드 연결 시험</h1>
+  <p class="sub">학교 노트북에서 이 페이지를 열고 1→3번 순서대로 눌러 보세요. 모두 초록색이면 진행해도 돼요.</p>
+
+  <section class="card">
+    <h2><span class="n">1</span>이 노트북과 브라우저</h2>
+    <div class="row"><div class="t">https 주소로 열렸나요?<small>소음 측정(마이크)에 꼭 필요해요</small></div><span class="res" id="rHttps">확인 중</span></div>
+    <div class="row"><div class="t">마이크<small>버튼을 누르고 '허용'을 고른 뒤 말해 보세요</small></div><div class="meter"><i id="mic"></i></div><button class="ghost" id="bMic">마이크 켜기</button><span class="res" id="rMic">아직</span></div>
+    <div class="row"><div class="t">화면 꺼짐 방지<small>수업 중 TV 화면이 꺼지지 않게 해요</small></div><span class="res" id="rWake">확인 중</span></div>
+    <div class="row"><div class="t">전체 화면</div><button class="ghost" id="bFull">전체 화면 해 보기</button><span class="res" id="rFull">아직</span></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">2</span>Firebase 설정값 붙여 넣기</h2>
+    <p class="note" style="margin-top:0">Firebase에서 웹 앱을 등록하면 나오는 <code>const firebaseConfig = { … };</code> 부분을 통째로 복사해 붙여 넣으세요. 이 노트북 브라우저에만 저장돼요.</p>
+    <textarea id="cfg" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;…&quot;,&#10;  authDomain: &quot;…&quot;,&#10;  projectId: &quot;…&quot;,&#10;  …&#10;};"></textarea>
+    <div class="row"><button id="bCfg">설정값 확인</button><span class="res" id="rCfg">아직</span></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">3</span>로그인과 저장</h2>
+    <div class="row"><div class="t">Google 로그인<small>팝업이 막히면 주소창 오른쪽의 팝업 허용을 눌러 주세요</small></div><button id="bLogin">Google 계정으로 로그인</button><span class="res" id="rLogin">아직</span></div>
+    <div class="row"><div class="t">저장하고 다시 읽기<small>서울 서버에 시험 기록 1개를 쓰고 읽어 와요</small></div><button class="ghost" id="bSave">저장 시험</button><span class="res" id="rSave">아직</span></div>
+    <div class="row"><div class="t">다른 사람 기록 막힘<small>남의 기록을 읽으려 할 때 '막힘'이 나와야 정상이에요</small></div><button class="ghost" id="bRule">차단 시험</button><span class="res" id="rRule">아직</span></div>
+  </section>
+
+  <div class="sum card" id="sum">시험을 진행해 주세요</div>
+
+  <section class="card">
+    <h2>따라 하기 안내</h2>
+    <details open><summary>가. GitHub에 이 페이지 올리기</summary>
+      <ol>
+        <li><b>github.com</b>에서 가입해요 (이메일 인증 포함). 아이디는 주소에 들어가요. 예: <code>goun</code> → <code>goun.github.io</code></li>
+        <li>오른쪽 위 <b>+ → New repository</b> → 이름 <code>classboard</code> → <b>Public</b> 선택 → <b>Add a README file</b> 체크 → <b>Create repository</b></li>
+        <li><b>Add file → Upload files</b> → 이 파일 <code>test.html</code>을 끌어다 놓고 → 아래 <b>Commit changes</b></li>
+        <li><b>Settings → Pages</b> → Source는 <b>Deploy from a branch</b>, Branch는 <b>main / (root)</b> → <b>Save</b></li>
+        <li>1~2분 뒤 <code>https://아이디.github.io/classboard/test.html</code> 을 학교 노트북에서 열어요</li>
+      </ol>
+    </details>
+    <details><summary>나. Firebase 만들기 (Google 계정으로)</summary>
+      <ol>
+        <li><b>console.firebase.google.com</b> → <b>프로젝트 만들기</b> → 이름 <code>classboard</code> → Google 애널리틱스는 꺼도 돼요</li>
+        <li>왼쪽 <b>빌드 → Authentication → 시작하기</b> → 로그인 방법에서 <b>Google</b> 사용 설정 → 지원 이메일 선택 → 저장</li>
+        <li>Authentication의 <b>설정 → 승인된 도메인 → 도메인 추가</b> → <code>아이디.github.io</code> 입력</li>
+        <li><b>빌드 → Firestore Database → 데이터베이스 만들기</b> → 위치 <b>asia-northeast3 (서울)</b> → <b>프로덕션 모드</b>로 시작<br>
+          <span class="note">'테스트 모드'는 30일 뒤에 막히니 고르지 마세요. 위치는 나중에 바꿀 수 없어요.</span></li>
+        <li>Firestore의 <b>규칙</b> 탭에 아래 내용을 통째로 붙여 넣고 <b>게시</b>
+<pre id="rules">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /boards/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}</pre>
+          <button class="ghost" id="bCopy">규칙 복사</button></li>
+        <li>왼쪽 위 <b>톱니바퀴 → 프로젝트 설정 → 내 앱</b>에서 웹 아이콘 <b>&lt;/&gt;</b> → 앱 닉네임 입력 → 등록 → 나오는 <code>firebaseConfig</code>를 복사해서 위 2번 칸에 붙여 넣기</li>
+      </ol>
+      <p class="note">Firebase 화면의 메뉴 이름은 조금씩 바뀔 수 있어요. 비슷한 이름을 찾으면 돼요.</p>
+    </details>
+  </section>
+</main>
+
+<script type="module">
+const $=s=>document.querySelector(s);
+const set=(id,cls,txt)=>{const e=$(id);e.className='res '+cls;e.textContent=txt;summary();};
+const results={};
+function summary(){
+  ['#rHttps','#rMic','#rWake','#rFull','#rCfg','#rLogin','#rSave','#rRule'].forEach(id=>results[id]=$(id).className);
+  const v=Object.values(results), bad=v.filter(c=>c.includes(' no')).length, ok=v.filter(c=>c.includes(' ok')).length;
+  const s=$('#sum');
+  if(bad){s.textContent=`확인이 필요한 항목이 ${bad}개 있어요`;s.style.background='var(--red-soft)';s.style.color='var(--red)';}
+  else if(ok>=7){s.textContent='모두 정상이에요! 이 노트북에서 교실 보드를 쓸 수 있어요';s.style.background='var(--green-soft)';s.style.color='#14774A';}
+  else{s.textContent=`정상 ${ok}개 · 나머지 시험을 진행해 주세요`;s.style.background='';s.style.color='';}
+}
+/* 1. 브라우저 */
+set('#rHttps', location.protocol==='https:'?'ok':'no', location.protocol==='https:'?'정상 (https)':'https가 아니에요');
+set('#rWake', 'wakeLock' in navigator?'ok':'warn', 'wakeLock' in navigator?'지원돼요':'지원 안 됨 (전원 설정으로 대신)');
+$('#bMic').onclick=async()=>{
+  try{
+    const st=await navigator.mediaDevices.getUserMedia({audio:true});
+    const ac=new AudioContext(), an=ac.createAnalyser(); an.fftSize=512; ac.createMediaStreamSource(st).connect(an);
+    const buf=new Float32Array(an.fftSize); let peak=0;
+    const loop=()=>{an.getFloatTimeDomainData(buf);let r=0;for(const x of buf)r+=x*x;r=Math.sqrt(r/buf.length);const v=Math.min(100,r*400);$('#mic').style.width=v+'%';if(v>8&&!peak){peak=1;set('#rMic','ok','소리 들림');}requestAnimationFrame(loop);};
+    loop(); set('#rMic','warn','켜짐 · 말해 보세요');
+  }catch(e){
+    const msg=e.name==='NotAllowedError'?'권한이 막혔어요':e.name==='NotFoundError'?'마이크가 없어요':'켜지지 않아요 ('+e.name+')';
+    set('#rMic','no',msg);
+  }
+};
+$('#bFull').onclick=async()=>{try{await document.documentElement.requestFullscreen();set('#rFull','ok','정상');setTimeout(()=>document.exitFullscreen(),1200);}catch(e){set('#rFull','no','안 돼요');}};
+
+/* 2. 설정값 */
+const parseCfg=t=>{const o={};for(const k of ['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId']){const m=t.match(new RegExp(k+'\\s*:\\s*["\']([^"\']+)["\']'));if(m)o[k]=m[1];}return o;};
+let cfg=null; try{cfg=JSON.parse(localStorage.getItem('cbTestCfg')||'null');}catch(e){}
+if(cfg){$('#cfg').value='// 저장된 설정값\n'+JSON.stringify(cfg,null,2);set('#rCfg','ok','저장된 값 사용 ('+cfg.projectId+')');}
+$('#bCfg').onclick=()=>{const o=parseCfg($('#cfg').value);
+  if(!o.apiKey||!o.projectId||!o.authDomain){set('#rCfg','no','apiKey·authDomain·projectId를 못 찾았어요');return;}
+  cfg=o; try{localStorage.setItem('cbTestCfg',JSON.stringify(o));}catch(e){} set('#rCfg','ok','정상 ('+o.projectId+')'); fb=null;};
+
+/* 3. Firebase */
+const V='10.12.2';
+let fb=null, user=null;
+async function getFb(){
+  if(fb) return fb;
+  if(!cfg){set('#rCfg','no','먼저 설정값을 넣어 주세요');throw new Error('no cfg');}
+  try{
+    const [{initializeApp},A,F]=await Promise.all([
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`)]);
+    const app=initializeApp(cfg);
+    fb={A,F,auth:A.getAuth(app),db:F.getFirestore(app)};
+    A.onAuthStateChanged(fb.auth,u=>{user=u;if(u)set('#rLogin','ok','로그인됨 · '+(u.email||''));});
+    return fb;
+  }catch(e){set('#rLogin','no','Firebase 프로그램을 못 불러왔어요 (학교망 차단?)');throw e;}
+}
+const errMsg=e=>({'auth/unauthorized-domain':'승인된 도메인에 이 주소를 추가해 주세요','auth/popup-blocked':'팝업이 막혔어요. 팝업을 허용해 주세요','auth/popup-closed-by-user':'로그인 창을 닫았어요','auth/operation-not-allowed':'Authentication에서 Google을 사용 설정해 주세요','auth/network-request-failed':'인터넷 연결 또는 학교망 차단','permission-denied':'규칙에 막혔어요. 규칙을 다시 게시해 주세요','unavailable':'서버에 닿지 않아요 (학교망 차단?)'}[e.code]||(e.code||e.message));
+$('#bLogin').onclick=async()=>{try{const {A,auth}=await getFb();const r=await A.signInWithPopup(auth,new A.GoogleAuthProvider());user=r.user;set('#rLogin','ok','로그인됨 · '+user.email);}catch(e){if(e.message!=='no cfg')set('#rLogin','no',errMsg(e));}};
+$('#bSave').onclick=async()=>{
+  try{const {F,db}=await getFb(); if(!user){set('#rSave','no','먼저 로그인해 주세요');return;}
+    const ref=F.doc(db,'boards',user.uid,'tests','ping'); const t=new Date().toISOString();
+    set('#rSave','warn','저장 중…');
+    await F.setDoc(ref,{at:t,from:navigator.userAgent.slice(0,80)});
+    const snap=await F.getDoc(ref);
+    set('#rSave', snap.exists()&&snap.data().at===t?'ok':'no', snap.exists()&&snap.data().at===t?'저장·읽기 정상':'읽어 온 값이 달라요');
+  }catch(e){if(e.message!=='no cfg')set('#rSave','no',errMsg(e));}
+};
+$('#bRule').onclick=async()=>{
+  try{const {F,db}=await getFb(); if(!user){set('#rRule','no','먼저 로그인해 주세요');return;}
+    await F.getDoc(F.doc(db,'boards','someone-else','tests','ping'));
+    set('#rRule','no','남의 기록이 열려요! 규칙을 다시 게시해 주세요');
+  }catch(e){ if(e.code==='permission-denied') set('#rRule','ok','정상 (막힘)'); else if(e.message!=='no cfg') set('#rRule','no',errMsg(e)); }
+};
+$('#bCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('#rules').textContent);$('#bCopy').textContent='복사했어요';}catch(e){$('#bCopy').textContent='직접 드래그해서 복사해 주세요';}};
+summary();
+</script>
+</body>
+</html>
