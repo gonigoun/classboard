@@ -1,0 +1,22 @@
+// Firestore 보안 규칙 (Firebase 콘솔 → Firestore → 규칙 탭에 게시한 내용과 같아야 해요)
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'gonigoun@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function allowed() {
+      return isAdmin() || (request.auth != null && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in get(/databases/$(database)/documents/access/allow).data.emails);
+    }
+    // 허용할 선생님 목록: 관리자만 읽고 씀
+    match /access/allow {
+      allow read, write: if isAdmin();
+    }
+    // 선생님마다 자기 보드: 허용된 본인만 읽고 씀
+    match /boards/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid && allowed();
+    }
+  }
+}

@@ -1,5 +1,5 @@
 // 우리 반 교실 보드: 화면 전체를 움직이는 중심 코드
-import { $, $$, ic, esc, toast, confetti, setWinStore, closeWin } from './ui.js';
+import { $, $$, ic, esc, toast, confetti, setWinStore, closeWin, alertBox } from './ui.js';
 import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpTargets, mmss } from './data.js';
 import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
 import * as store from './store.js';
@@ -115,7 +115,7 @@ function drawAcct() {
     e.stopPropagation();
     const av = e.currentTarget, m = av.querySelector('.menu'); if (m) { m.remove(); return; }
     av.insertAdjacentHTML('beforeend', `<div class="menu"><div>Google 계정 · ${esc(S.user.email || '')}</div>
-      <button data-m="set">${ic('gear')} 설정 (시간표·명단·소리)</button><button data-m="hist">${ic('history')} 지난 기록 보기</button><button data-m="out">${ic('logout')} 로그아웃</button></div>`);
+      <button data-m="set">${ic('gear')} 설정 (시간표·명단·소리${store.isAdminEmail(S.user.email) ? '·허용' : ''})</button><button data-m="hist">${ic('history')} 지난 기록 보기</button><button data-m="out">${ic('logout')} 로그아웃</button></div>`);
     av.querySelector('[data-m=set]').onclick = (ev) => { ev.stopPropagation(); av.querySelector('.menu').remove(); openSettings('table'); };
     av.querySelector('[data-m=hist]').onclick = (ev) => { ev.stopPropagation(); av.querySelector('.menu').remove(); openHistory(() => store.listDays(S.user.uid, semesterStart(now()))); };
     av.querySelector('[data-m=out]').onclick = async (ev) => { ev.stopPropagation(); await store.logout(); toast('로그아웃했어요. 이 노트북에는 예시 화면만 보여요'); };
@@ -133,7 +133,16 @@ async function onUser(u) {
   if (u) {
     S.user = u;
     let cfg = null;
-    try { cfg = await store.loadConfig(u.uid); } catch (e) { /* 오프라인 */ }
+    try { cfg = await store.loadConfig(u.uid); } catch (e) {
+      if (e && e.code === 'permission-denied') { // 허용 목록에 없는 계정
+        try { localStorage.removeItem('cb:cache'); } catch (er) { /* 무시 */ }
+        const email = u.email || '';
+        await store.logout();
+        alertBox('허용되지 않은 계정이에요', `${email} 계정은 아직 선생님 기능을 쓸 수 없어요. 관리하는 선생님께 이 이메일을 허용해 달라고 요청해 주세요. 지금은 게스트 모드로 둘러볼 수 있어요.`);
+        return;
+      }
+      /* 그 밖의 오류는 오프라인으로 보고 아래 보관본을 씀 */
+    }
     if (!cfg) {
       const cache = readCache();
       cfg = cache && cache.uid === u.uid ? cache.cfg : null;
@@ -403,6 +412,8 @@ initWidgets({
 });
 initSettings({
   cfg: () => S.cfg, day: () => S.day, todayWd: () => now().getDay(), guest,
+  isAdmin: () => !!S.user && store.isAdminEmail(S.user.email),
+  loadAllow: () => store.loadAllow(), saveAllow: (l) => store.saveAllow(l),
   saveCfg, saveDay, applyAll,
   resetAll: async () => {
     if (!guest()) { try { await store.deleteConfig(S.user.uid); } catch (e) { /* 무시 */ } }

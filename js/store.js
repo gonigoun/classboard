@@ -106,6 +106,17 @@ export function saveBgImage(uid, data) {
   write('bgimage', () => (data ? F.setDoc(ref(uid, 'config', 'bgimage'), { data }) : F.deleteDoc(ref(uid, 'config', 'bgimage'))));
 }
 
+/* ---------- 허용할 선생님 목록 (관리자만 읽고 씀) ---------- */
+export const ADMIN_EMAIL = 'gonigoun@gmail.com';
+export const isAdminEmail = (e) => String(e || '').toLowerCase() === ADMIN_EMAIL;
+export async function loadAllow() {
+  const s = await F.getDoc(F.doc(db, 'access', 'allow'));
+  return s.exists() ? (s.data().emails || []) : [];
+}
+export async function saveAllow(emails) {
+  await F.setDoc(F.doc(db, 'access', 'allow'), { emails, updatedAt: F.serverTimestamp() });
+}
+
 /** 이번 학기 기록 목록 */
 export async function listDays(uid, fromDate) {
   const q = F.query(F.collection(db, 'boards', uid, 'days'), F.where(F.documentId(), '>=', fromDate));

@@ -31,6 +31,16 @@ export function confirmBox(title, msg, okText = '확인', danger = true) {
   });
 }
 
+/** 알림 창: 확인 버튼 하나 */
+export function alertBox(title, msg) {
+  return new Promise((res) => {
+    const m = document.createElement('div'); m.className = 'modal';
+    m.innerHTML = `<div class="dialog"><h3>${esc(title)}</h3><p>${esc(msg)}</p><div class="row end"><button class="btn" data-a="ok">확인</button></div></div>`;
+    document.body.appendChild(m);
+    m.querySelector('[data-a=ok]').onclick = () => { m.remove(); res(); };
+  });
+}
+
 /* ---------- 떠 있는 위젯 창 ---------- */
 const wins = {};
 let saveWin = () => {};
