@@ -4,13 +4,23 @@
 시계·시간표, 수업/쉬는 시간 화면, 판서, 과제 정류장, 이름 뽑기, 소음 측정, 신호등 등을 한 화면에서 써요.
 
 ## 주소
-- 교실 보드: https://gonigoun.github.io/classboard/ (준비 중)
+- 교실 보드: https://gonigoun.github.io/classboard/
 - 연결 시험: https://gonigoun.github.io/classboard/test.html
 - 화면 미리 보기: https://gonigoun.github.io/classboard/preview/
 
 ## 구성
 | 파일 | 설명 |
 |---|---|
+| `index.html` | 교실 보드 화면 (주소만 열면 나오는 화면) |
+| `css/board.css` | 화면 꾸밈 |
+| `js/app.js` | 화면 전체를 움직이는 중심 코드 (시계·수업 상태·과제 정류장·위젯 바·시간 이동) |
+| `js/data.js` | 예시 데이터, 날짜·시간 계산 |
+| `js/store.js` | Google 로그인과 Firebase 저장 |
+| `js/sound.js` | 집중 종·자동 효과음 |
+| `js/whiteboard.js` | 판서 |
+| `js/widgets.js` | 배경·이름 뽑기·소음 측정·신호등 |
+| `js/settings.js` | 설정 창 (시간표·명단·소리·초기화) |
+| `js/history.js` | 지난 기록 (날짜별·학생별·엑셀 내려받기) |
 | `test.html` | 학교 노트북에서 https·마이크·Google 로그인·저장이 되는지 확인하는 시험 페이지 |
 | `preview/index.html` | 화면 구성 미리 보기 (실제 저장·로그인 없음) |
 
