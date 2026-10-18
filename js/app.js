@@ -54,6 +54,7 @@ async function loadToday() {
   let day = null;
   if (!guest()) { try { day = await store.loadDay(S.user.uid, key); } catch (e) { /* 오프라인: 아래에서 새로 만듦 */ } }
   if (!day) day = { table: clone(S.cfg.weekTables[wd] || []), progress: {}, custom: false };
+  else if (!day.custom) day.table = clone(S.cfg.weekTables[wd] || []); // '오늘만 바꾸기'를 안 했으면 요일 기본 시간표를 따라감
   day.progress = day.progress || {};
   S.day = day;
   S.phaseKey = '';
