@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>우리 반 교실 보드</title>
+<meta name="description" content="교실 TV에 띄워 두는 수업 도우미: 시계·시간표, 판서, 과제 정류장, 이름 뽑기, 소음 측정">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/board.css">
+</head>
+<body>
+<div id="bg" class="pat"></div><div id="bgDim"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+ <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.6 2.2H4.4z"/><path d="M10 20.5a2 2 0 0 0 4 0"/><path d="M12 3v2"/></symbol>
+ <symbol id="i-dice" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.3" fill="currentColor"/><circle cx="15" cy="15" r="1.3" fill="currentColor"/><circle cx="15" cy="9" r="1.3" fill="currentColor"/><circle cx="9" cy="15" r="1.3" fill="currentColor"/></symbol>
+ <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/></symbol>
+ <symbol id="i-light" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="4"/><circle cx="12" cy="7.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="16.5" r="1.6"/></symbol>
+ <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 18h3"/></symbol>
+ <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+ <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12.5 5v14l-5-4.5H4z"/><path d="M16 9.5a3.5 3.5 0 0 1 0 5M18.5 7a7 7 0 0 1 0 10"/></symbol>
+ <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12.5 5v14l-5-4.5H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
+ <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+ <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M3.5 17l5-5 4 4 3-3 5 5"/></symbol>
+ <symbol id="i-book" viewBox="0 0 24 24"><path d="M3 5.5c3-1.2 6-1 9 1v13c-3-2-6-2.2-9-1z"/><path d="M21 5.5c-3-1.2-6-1-9 1v13c3-2 6-2.2 9-1z"/></symbol>
+ <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l1.2-4.8L16 4.4l3.6 3.6L8.8 18.8z"/><path d="M14 6.4l3.6 3.6"/></symbol>
+ <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V4"/><path d="M6 4.5h11l-2.2 4 2.2 4H6"/></symbol>
+ <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+ <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+ <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4.5 4v4h4"/></symbol>
+ <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20c4-1 6-3 9-6l5-5-3-3-5 5c-3 3-5 5-6 9z"/></symbol>
+ <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M4.5 15.5l9-9 6 6-6.5 6.5H8.5z"/><path d="M9 20h11"/></symbol>
+ <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/></symbol>
+ <symbol id="i-min" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
+ <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+ <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.2l2.6 5.5 6 .8-4.4 4.1 1.1 6L12 16.7l-5.3 2.9 1.1-6-4.4-4.1 6-.8z"/></symbol>
+ <symbol id="i-teacher" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2.5"/><path d="M8 20h8M12 16v4"/></symbol>
+ <symbol id="i-kid" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></symbol>
+ <symbol id="i-marker" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5-8 8H8.5v-3z"/><path d="M8.5 17.5L5 21h5"/><path d="M12 7l5 5"/></symbol>
+ <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 7V4.5h14V7M12 4.5v15M9 19.5h6"/></symbol>
+ <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M5 3.5l13 6.5-5.5 1.8L10.7 17.5z"/><path d="M13 12l5 5"/></symbol>
+ <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+ <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 6.2l2.1 2.1M17.7 15.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 17.8l2.1-2.1M17.7 8.3l2.1-2.1"/></symbol>
+ <symbol id="i-sunny" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></symbol>
+ <symbol id="i-tasks" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7.2 12h2.6M14.2 12h2.6" stroke-dasharray="1.5 1.5"/></symbol>
+ <symbol id="i-history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/><path d="M12 8v4l3 2"/></symbol>
+ <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 16l4-4-4-4M19 12H9"/></symbol>
+ <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></symbol>
+ <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V7M7 12l5-5 5 5"/></symbol>
+</defs>
+</svg>
+
+<div id="app">
+  <header class="topbar card">
+    <div class="bellbox">
+      <button class="bellbtn" id="bellBtn" aria-label="집중 종"><svg class="i"><use href="#i-bell"/></svg><span>집중</span></button>
+      <select id="bellSel" aria-label="종소리 고르기"></select>
+    </div>
+    <div class="clock"><span class="hm num" id="hm">--:--</span><span class="s num" id="ss">--</span></div>
+    <div class="date" id="date"></div>
+    <div class="mini-light" id="miniLight" title="신호등"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <div class="tt" id="tt"></div>
+    <div class="right">
+      <div class="acct" id="acct"></div>
+      <button class="timemove" id="timeMoveBtn"><svg class="i"><use href="#i-clock"/></svg>시간 이동</button>
+    </div>
+  </header>
+
+  <div class="stage-col">
+    <section class="stage card" id="stage"><div class="stage-body"><div class="loading"><div class="t">불러오는 중…</div></div></div></section>
+    <section class="tasks card" id="tasks" style="display:none"></section>
+  </div>
+
+  <nav class="wbar card" id="wbar">
+    <button class="w" data-w="bg"><svg class="i"><use href="#i-image"/></svg>배경</button>
+    <button class="w" data-w="pick"><svg class="i"><use href="#i-dice"/></svg>이름 뽑기</button>
+    <button class="w" data-w="noise"><svg class="i"><use href="#i-mic"/></svg>소음 측정</button>
+    <button class="w" data-w="light"><svg class="i"><use href="#i-light"/></svg>신호등</button>
+    <button class="w" data-w="tasks"><svg class="i"><use href="#i-tasks"/></svg>과제 정류장</button>
+    <span class="sep"></span>
+    <button class="w" data-w="tt"><svg class="i"><use href="#i-cal"/></svg>시간표</button>
+    <button class="w" data-w="sound"><svg class="i"><use href="#i-sound"/></svg><span>소리 켬</span></button>
+    <button class="w" data-w="wake"><svg class="i"><use href="#i-sunny"/></svg><span>화면 켜두기</span></button>
+    <button class="w" data-w="full"><svg class="i"><use href="#i-full"/></svg>전체 화면</button>
+    <button class="w keep fold" id="foldBar" title="위젯 바 접기"><svg class="i"><use href="#i-chev"/></svg></button>
+  </nav>
+</div>
+
+<div class="guestbar" id="guestbar" hidden>게스트 모드 · 예시 화면이에요. 바꾼 내용은 저장되지 않아요</div>
+<div class="credit" id="credit"></div>
+<div class="dbg" id="dbg" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
