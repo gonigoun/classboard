@@ -1,6 +1,6 @@
 // 위젯: 배경, 이름 뽑기, 소음 측정(실제 마이크), 신호등
-import { $, ic, esc, toast, confetti, openWin, closeWin, isWinOpen } from './ui.js';
-import { FX } from './sound.js';
+import { $, ic, esc, toast, confetti, openWin, closeWin, isWinOpen, timerSvg } from './ui.js';
+import { FX, BELLS } from './sound.js';
 
 let ctx = null; // app.js가 넘겨주는 { cfg(), save(), soundOn(), roster(), setLight(), bgImage(), setBgImage() }
 export function initWidgets(c) { ctx = c; }
@@ -247,4 +247,65 @@ async function startMic(w) {
     mic.raf = requestAnimationFrame(loop);
   };
   mic.raf = requestAnimationFrame(loop);
+}
+
+/* ---------- 타이머 (떠 있는 창, 크기 자유) ---------- */
+let T = null; // { total, endAt, left, running, raf, ringing }
+const fmt = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60; return (h ? `${h}:${String(m).padStart(2, '0')}` : String(m).padStart(2, '0')) + ':' + String(s).padStart(2, '0'); };
+export function openTimer() {
+  const c = ctx.cfg();
+  c.timer = { type: 'hour', bell: 0, h: 0, m: 5, s: 0, ...(c.timer || {}) };
+  openWin('timer', '타이머', 'clock', `<div class="tmr">
+      <div class="tmr-vis" data-r="vis"></div>
+      <div class="tmr-set" data-r="set">
+        <label><input type="number" min="0" max="23" data-u="h" value="${c.timer.h}"><span>시</span></label>
+        <label><input type="number" min="0" max="59" data-u="m" value="${c.timer.m}"><span>분</span></label>
+        <label><input type="number" min="0" max="59" data-u="s" value="${c.timer.s}"><span>초</span></label>
+      </div>
+      <div class="row tmr-pre">${[[30, '30초'], [60, '1분'], [180, '3분'], [300, '5분'], [600, '10분']].map(([v, n]) => `<button class="btn ghost" data-p="${v}">${n}</button>`).join('')}</div>
+      <div class="row"><button class="btn" data-a="go">시작</button><button class="btn ghost" data-a="reset">다시</button><span class="sp"></span>
+        <div class="seg sm">${[['hour', '모래시계'], ['pie', '부채꼴'], ['num', '숫자만']].map(([k, n]) => `<button data-t="${k}" class="${c.timer.type === k ? 'sel' : ''}">${n}</button>`).join('')}</div></div>
+      <label class="chk">끝날 때 소리 <select data-r="bell">${BELLS.map((b, i) => `<option value="${i}" ${i === c.timer.bell ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select><button class="btn ghost" data-a="test">들어 보기</button></label>
+    </div>`, (w) => bindTimer(w), () => { stopTimer(); });
+}
+function setSec() { const t = ctx.cfg().timer; return (+t.h || 0) * 3600 + (+t.m || 0) * 60 + (+t.s || 0); }
+function stopTimer() { if (T) { clearInterval(T.raf); clearInterval(T.ringing); } T = null; }
+function bindTimer(w) {
+  const c = ctx.cfg(), q = (r) => w.querySelector(`[data-r=${r}]`), a = (r) => w.querySelector(`[data-a=${r}]`);
+  T = { total: setSec(), left: setSec(), running: false, endAt: 0, raf: 0, ringing: 0 };
+  const draw = () => {
+    const f = T.total ? T.left / T.total : 0, type = c.timer.type, done = T.total && T.left <= 0;
+    q('vis').className = 'tmr-vis t-' + type + (done ? ' done' : '');
+    q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
+    a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
+    q('set').classList.toggle('lock', T.running);
+  };
+  const loop = () => {
+    if (!T || !T.running) return;
+    T.left = Math.max(0, (T.endAt - performance.now()) / 1000);
+    draw();
+    if (T.left <= 0) { T.running = false; clearInterval(T.raf); finish(); }
+  };
+  const finish = () => {
+    draw(); const ring = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
+    ring(); let n = 1; T.ringing = setInterval(() => { if (n++ >= 3) clearInterval(T.ringing); ring(); }, 2600);
+    if (isWinOpen('timer')) toast('타이머 시간이 끝났어요');
+  };
+  const reset = () => { clearInterval(T.ringing); T.running = false; clearInterval(T.raf); T.total = T.left = setSec(); draw(); };
+  w.querySelectorAll('[data-u]').forEach((inp) => {
+    inp.oninput = () => { const max = inp.dataset.u === 'h' ? 23 : 59; c.timer[inp.dataset.u] = Math.max(0, Math.min(max, Math.floor(+inp.value || 0))); if (!T.running) reset(); };
+    inp.onchange = () => { inp.value = c.timer[inp.dataset.u]; ctx.save(); };
+  });
+  w.querySelectorAll('[data-p]').forEach((b) => { b.onclick = () => { const v = +b.dataset.p; c.timer.h = Math.floor(v / 3600); c.timer.m = Math.floor(v / 60) % 60; c.timer.s = v % 60; w.querySelectorAll('[data-u]').forEach((i) => { i.value = c.timer[i.dataset.u]; }); ctx.save(); reset(); }; });
+  w.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => { c.timer.type = b.dataset.t; w.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('sel', x === b)); ctx.save(); draw(); }; });
+  q('bell').onchange = () => { c.timer.bell = +q('bell').value; ctx.save(); };
+  a('test').onclick = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
+  a('reset').onclick = reset;
+  a('go').onclick = () => {
+    if (T.total && T.left <= 0) { clearInterval(T.ringing); reset(); return; }
+    if (T.running) { T.running = false; clearInterval(T.raf); draw(); return; }
+    if (!T.total) { toast('시간을 먼저 정해 주세요'); return; }
+    T.running = true; T.endAt = performance.now() + T.left * 1000; clearInterval(T.raf); T.raf = setInterval(loop, 200); loop();
+  };
+  draw();
 }

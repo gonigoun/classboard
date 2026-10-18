@@ -84,14 +84,7 @@ pre{padding:12px;overflow:auto;white-space:pre}
         <li><b>빌드 → Firestore Database → 데이터베이스 만들기</b> → 위치 <b>asia-northeast3 (서울)</b> → <b>프로덕션 모드</b>로 시작<br>
           <span class="note">'테스트 모드'는 30일 뒤에 막히니 고르지 마세요. 위치는 나중에 바꿀 수 없어요.</span></li>
         <li>Firestore의 <b>규칙</b> 탭에 아래 내용을 통째로 붙여 넣고 <b>게시</b>
-<pre id="rules">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /boards/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
-  }
-}</pre>
+<pre id="rules">불러오는 중… (저장소의 firestore.rules 파일 내용을 그대로 씀)</pre>
           <button class="ghost" id="bCopy">규칙 복사</button></li>
         <li>왼쪽 위 <b>톱니바퀴 → 프로젝트 설정 → 내 앱</b>에서 웹 아이콘 <b>&lt;/&gt;</b> → 앱 닉네임 입력 → 등록 → 나오는 <code>firebaseConfig</code>를 복사해서 위 2번 칸에 붙여 넣기</li>
       </ol>
@@ -172,6 +165,7 @@ $('#bRule').onclick=async()=>{
   }catch(e){ if(e.code==='permission-denied') set('#rRule','ok','정상 (막힘)'); else if(e.message!=='no cfg') set('#rRule','no',errMsg(e)); }
 };
 $('#bCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('#rules').textContent);$('#bCopy').textContent='복사했어요';}catch(e){$('#bCopy').textContent='직접 드래그해서 복사해 주세요';}};
+fetch('firestore.rules').then((r)=>r.ok?r.text():Promise.reject()).then((t)=>{$('#rules').textContent=t.split('\n').filter((l)=>!l.startsWith('//')).join('\n').trim();}).catch(()=>{$('#rules').textContent='firestore.rules 파일을 불러오지 못했어요. 저장소에서 직접 복사해 주세요.';});
 summary();
 </script>
 </body>

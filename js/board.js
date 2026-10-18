@@ -1,0 +1,478 @@
+// 선생님 보드 (게스트 모드 포함): 시계·수업 화면·과제 정류장·위젯 바
+import { $, $$, ic, esc, toast, confetti, confirmBox, setWinStore, closeWin, timerSvg } from './ui.js';
+import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpTargets, mmss } from './data.js';
+import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
+import * as store from './store.js';
+import { getWB, fitWB, setWbFull, wbIsFull } from './whiteboard.js';
+import { initWidgets, applyBg, openBg, openPick, openNoise, openLight, openTimer } from './widgets.js';
+import { initSettings, openSettings } from './settings.js';
+import { openHistory } from './history.js';
+import { initClassroom, openStudents, openMessages, onSeats, onMsgs, unreadCount } from './classroom.js';
+import { tasksOf, isPick, needOf, isDone, isChecked, posOf, withPos, withToggle, withReset } from './tasks.js';
+
+/* ---------- 상태 ---------- */
+const S = {
+  user: null,          // 로그인한 선생님 (허용된 계정만)
+  cfg: sampleConfig(), // 설정 (시간표·명단·소리·배경…)
+  day: null,           // 오늘 기록 { table, custom, roster, progress(요약) }
+  dateKey: null,
+  marks: {},           // 학생별 체크 { "번호": {p,k} }
+  recent: {},          // 방금 내가 바꾼 번호 (서버 응답이 늦게 와도 화면이 되돌아가지 않게)
+  seats: {},           // 폰으로 들어온 학생 { "번호": {...} }
+  bgImage: null,
+  offset: 0,           // 시간 이동(확인용) 초
+  phaseKey: '',
+  phase: { kind: 'none' },
+  wbOn: false,
+  tasksFull: false,
+  saveState: 'ok',
+  guestWarned: false,
+  unsubs: [],
+};
+const guest = () => !S.user;
+const now = () => new Date(Date.now() + S.offset * 1000);
+const nowSec = () => { const d = now(); return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds(); };
+const table = () => (S.day ? S.day.table : []) || [];
+const roster = () => S.cfg.roster || [];
+const soundOn = () => !!S.cfg.sound.on;
+const fx = (name, ...a) => { if (soundOn()) FX[name](...a); };
+
+/* ---------- 저장 ---------- */
+function warnGuest() { if (!S.guestWarned) { S.guestWarned = true; toast('게스트 모드라서 바꾼 내용은 저장되지 않아요'); } }
+function saveCfg() {
+  if (guest()) { warnGuest(); return; }
+  try { localStorage.setItem('cb:cache', JSON.stringify({ uid: S.user.uid, cfg: S.cfg })); } catch (e) { /* 저장 공간 막힘 */ }
+  store.saveConfig(S.user.uid, S.cfg);
+}
+/** 하루 기록: 시간표 + 학생별 체크 요약 (지난 기록용) */
+function saveDay() {
+  if (guest() || !S.day) { if (guest()) warnGuest(); return; }
+  if (!S.day.table.length) return; // 수업 없는 날은 기록하지 않음
+  S.day.roster = [...roster()];
+  const progress = {}, picks = {};
+  table().forEach((p, pi) => {
+    progress[pi] = roster().map((_, k) => posOf(markOf(k), pi));
+    picks[pi] = roster().map((_, k) => +((markOf(k).k || {})[pi] || 0));
+  });
+  S.day.progress = progress; S.day.picks = picks;
+  store.saveDay(S.user.uid, S.dateKey, S.day);
+}
+store.onStatus((st) => { S.saveState = st; drawAcct(); });
+
+/* ---------- 학생별 체크 ---------- */
+const markOf = (k) => S.marks[String(k + 1)] || { p: {}, k: {} };
+function setMark(k, mark) {
+  const num = String(k + 1);
+  S.marks[num] = mark; S.recent[num] = Date.now();
+  if (!guest()) { store.setMark(S.user.uid, S.dateKey, num, mark); saveDay(); } else warnGuest();
+}
+
+/* ---------- 오늘 기록 불러오기 ---------- */
+async function loadToday() {
+  const d = now(); const key = ymd(d); const wd = d.getDay();
+  S.dateKey = key;
+  let day = null;
+  if (!guest()) { try { day = await store.loadDay(S.user.uid, key); } catch (e) { /* 오프라인: 아래에서 새로 만듦 */ } }
+  if (!day) day = { table: clone(S.cfg.weekTables[wd] || []), custom: false };
+  else if (!day.custom) day.table = clone(S.cfg.weekTables[wd] || []); // '오늘만 바꾸기'를 안 했으면 요일 기본 시간표를 따라감
+  S.day = day; S.marks = {}; S.phaseKey = '';
+  // 예전 형식(그날 기록에 진행 상황을 바로 담던 방식)도 읽어 줌
+  if (day.progress && !guest()) Object.entries(day.progress).forEach(([pi, arr]) => (arr || []).forEach((v, k) => { if (v) { const m = markOf(k); m.p[pi] = v; S.marks[String(k + 1)] = m; } }));
+  if (!guest()) {
+    S.unsubs.forEach((u) => u()); S.unsubs = [];
+    S.unsubs.push(store.watchMarks(S.user.uid, key, (rows) => {
+      const t = Date.now();
+      rows.forEach((r) => { if (!S.recent[r.id] || t - S.recent[r.id] > 2500) S.marks[r.id] = { p: r.p || {}, k: r.k || {} }; });
+      drawTasks(true);
+    }, () => {}));
+    if (day.table.length) saveDay(); // 오늘 시간표를 그날 기록으로 남김 (학생 폰도 이걸 봄)
+  }
+}
+
+/* ---------- 위쪽 막대 ---------- */
+function drawClock() {
+  const d = now();
+  $('#hm').textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  $('#ss').textContent = String(d.getSeconds()).padStart(2, '0');
+  $('#date').innerHTML = `<b>${d.getMonth() + 1}월 ${d.getDate()}일</b>${WEEKDAYS[d.getDay()]}요일`;
+}
+function drawTT() {
+  const ph = S.phase, t = nowSec();
+  const toS = (x) => { const [h, m] = x.split(':'); return h * 3600 + m * 60; };
+  $('#tt').innerHTML = table().map((p, i) => {
+    let c = '';
+    if (ph.kind === 'class' && ph.cur === i) c = 'now';
+    else if (toS(p.end) <= t) c = 'past';
+    else if ((ph.kind === 'break' || ph.kind === 'soon' || ph.kind === 'morning') && ph.next === i) c = 'next';
+    return `<div class="p ${c}"><small>${esc(p.name)} · ${esc(p.start)}</small><b>${esc(p.subject || p.name)}</b></div>`;
+  }).join('') || '<span class="hint">오늘은 시간표가 없어요</span>';
+}
+function setLight(c, user) {
+  S.cfg.light.state = c;
+  $$('#miniLight i').forEach((i) => i.classList.toggle('on', i.classList.contains(c)));
+  $$('.lights button').forEach((b) => b.classList.toggle('on', b.classList.contains(c)));
+  if (user) saveCfg();
+}
+function drawBellSel() {
+  const s = S.cfg.sound;
+  $('#bellSel').innerHTML = [...BELLS.map((b) => b.name), ...s.custom.map((c) => c.name)].map((n, i) => `<option value="${i}" ${i === s.bell ? 'selected' : ''}>${esc(n)}</option>`).join('');
+}
+
+/* ---------- 로그인·저장 상태 ---------- */
+function drawAcct() {
+  const a = $('#acct');
+  $('#guestbar').hidden = !guest();
+  if (guest()) {
+    a.innerHTML = `<span class="save guest"><span class="d"></span>게스트 모드</span><button class="loginbtn" data-a="login">선생님 로그인</button>`;
+    a.querySelector('[data-a=login]').onclick = () => { localStorage.setItem('cb:intent', 'teacher'); location.hash = '#/role'; location.reload(); };
+    return;
+  }
+  const st = S.saveState;
+  const label = { ok: '저장됨', ing: '저장 중…', off: '인터넷 끊김 · 이 노트북에 보관 중', err: '저장 실패 · 다시 시도 중' }[st];
+  const name = (S.user.name || S.user.email || '선생님').trim();
+  a.innerHTML = `<span class="save ${st}"><span class="d"></span>${label}</span><button class="avatar" data-a="av" title="${esc(name)}">${esc(name[0])}</button>`;
+  a.querySelector('[data-a=av]').onclick = (e) => {
+    e.stopPropagation();
+    const av = e.currentTarget, m = av.querySelector('.menu'); if (m) { m.remove(); return; }
+    av.insertAdjacentHTML('beforeend', `<div class="menu"><div>Google 계정 · ${esc(S.user.email || '')}</div>
+      <button data-m="set">${ic('gear')} 설정 (시간표·명단·소리${store.isAdminEmail(S.user.email) ? '·허용' : ''})</button>
+      <button data-m="hist">${ic('history')} 지난 기록 보기</button>
+      <button data-m="home">${ic('image')} 시작 화면으로</button>
+      <button data-m="out">${ic('logout')} 로그아웃</button></div>`);
+    const close = (ev) => { ev.stopPropagation(); av.querySelector('.menu').remove(); };
+    av.querySelector('[data-m=set]').onclick = (ev) => { close(ev); openSettings('table'); };
+    av.querySelector('[data-m=hist]').onclick = (ev) => { close(ev); openHistory(() => store.listDays(S.user.uid, semesterStart(now()))); };
+    av.querySelector('[data-m=home]').onclick = (ev) => { close(ev); location.hash = '#/'; location.reload(); };
+    av.querySelector('[data-m=out]').onclick = async (ev) => { close(ev); try { localStorage.removeItem('cb:cache'); } catch (er) { /* 무시 */ } await store.logout(); };
+  };
+}
+document.addEventListener('click', () => { const m = $('.menu'); if (m) m.remove(); });
+
+/* ---------- 가운데 수업 화면 ---------- */
+const chips = (p) => `<div class="chips">${(p.items || []).map((b) => `<span class="chip">${esc(b)}</span>`).join('')}</div>`;
+
+function drawStage() {
+  const ph = S.phase, st = $('#stage'), T = table();
+  document.body.classList.toggle('is-break', ph.kind === 'break');
+  $('#app').className = 'mode-' + (ph.kind === 'morning' ? 'class' : ph.kind);
+  if (ph.kind !== 'class' && S.wbOn) { S.wbOn = false; if (wbIsFull()) setWbFull(false); }
+  let h = '';
+  if (ph.kind === 'class') {
+    const p = T[ph.cur];
+    h = `<div class="band">${esc(p.name)}</div><button class="wb-toggle ${S.wbOn ? 'on' : ''}" data-a="wb">${ic('pen')}판서</button>`;
+    if (!S.wbOn) h += `<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
+  } else if (ph.kind === 'soon') {
+    const p = T[ph.next];
+    h = `<div class="band soon">${ic('bell')}곧 ${esc(p.name)}</div><div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
+  } else if (ph.kind === 'break') {
+    const p = T[ph.next], tt = S.cfg.timerType;
+    // 숫자만 고르면 큰 숫자 하나만 보여 줌 (글자·숫자·준비물이 겹치지 않게 세로로 쌓음)
+    h = `<div class="stage-body"><div class="brk pop t-${tt}">
+        ${tt === 'num' ? '' : `<div class="timer-vis">${timerSvg(tt, ph.remain / ph.total)}</div>`}
+        <div class="brk-info"><div class="brk-title">${ph.lunch ? '점심시간' : '쉬는 시간'}</div>
+          <div class="brk-time num" data-r="bt">${mmss(ph.remain)}</div>
+          <div class="next"><h3>곧 ${esc(p.name)} ${esc(p.subject)}</h3>${chips(p)}</div></div></div></div>`;
+  } else if (ph.kind === 'morning') {
+    const p = T[ph.next];
+    h = `<div class="stage-body"><div class="morning pop"><div class="hello">좋은 아침이에요!</div><div class="first">${esc(p.name)} ${esc(p.subject)}</div><div class="hint">${esc(p.start)} 시작</div>${chips(p)}</div></div>`;
+  } else if (ph.kind === 'end') {
+    h = `<div class="stage-body"><div class="done pop"><div class="stars">${ic('star')}${ic('star')}${ic('star')}</div><div class="t">오늘 수업 끝!</div></div></div>`;
+  } else {
+    h = `<div class="stage-body"><div class="none pop"><div class="t">오늘은 수업이 없어요</div><p class="hint" style="text-align:center">시간표는 위젯 바의 '시간표'에서 바꿀 수 있어요${guest() ? ' · 확인용 \'시간 이동\'으로 평일 화면을 볼 수 있어요' : ''}</p></div></div>`;
+  }
+  st.innerHTML = h;
+  const wbb = st.querySelector('[data-a=wb]');
+  if (wbb) {
+    wbb.onclick = () => {
+      S.wbOn = !S.wbOn;
+      if (S.wbOn && !S.cfg.tasksClosed) { S.cfg.tasksClosed = true; drawTasks(); }
+      if (!S.wbOn && wbIsFull()) setWbFull(false);
+      drawStage();
+    };
+    if (S.wbOn) { const p = T[ph.cur]; st.appendChild(getWB(`<div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}`)); requestAnimationFrame(fitWB); }
+  }
+}
+function tickBreak() {
+  const ph = S.phase; if (ph.kind !== 'break') return;
+  const tv = $('#stage [data-r=tv]');
+  if (tv) tv.outerHTML = timerSvg(S.cfg.timerType, ph.remain / ph.total);
+  const bt = $('#stage [data-r=bt]'); if (bt) bt.textContent = mmss(ph.remain);
+}
+
+/* ---------- 과제 현황 ---------- */
+function tasksVisible() {
+  const ph = S.phase;
+  if (!S.cfg.showTasks || !S.day) return false;
+  if (ph.kind === 'class') return tasksOf(table()[ph.cur]).length > 0;
+  if (ph.kind === 'end') return table().some((p) => tasksOf(p).length);
+  return false;
+}
+/** 순서대로 과제의 정류장 보기. 수업 끝이면 오늘 과제를 한 줄로 */
+function lineView() {
+  const ph = S.phase, T = table();
+  if (ph.kind === 'end') {
+    const st = []; T.forEach((p, pi) => tasksOf(p).forEach((t) => st.push({ label: t, p: p.name, pi })));
+    const last = st.length;
+    const pos = (k) => { let off = 0; for (let pi = 0; pi < T.length; pi++) { const n = tasksOf(T[pi]).length; const v = posOf(markOf(k), pi); if (v < n) return off + v; off += n; } return last; };
+    return {
+      day: true, title: '오늘 과제', stations: [...st, { label: '완료' }], last, pos,
+      fwd(k) { for (let pi = 0; pi < T.length; pi++) { const n = tasksOf(T[pi]).length; const v = posOf(markOf(k), pi); if (v < n) { setMark(k, withPos(markOf(k), pi, v + 1)); return true; } } return false; },
+      back(k) { const g = pos(k); if (!g) return false; const t = g - 1; let off = 0; for (let pi = 0; pi < T.length; pi++) { const n = tasksOf(T[pi]).length; if (t < off + n) { setMark(k, withPos(markOf(k), pi, t - off)); return true; } off += n; } return false; },
+    };
+  }
+  const pi = ph.cur, p = T[pi], last = tasksOf(p).length;
+  return {
+    title: `${p.name} 과제`, stations: [...tasksOf(p).map((t) => ({ label: t })), { label: '완료' }], last, pos: (k) => Math.min(posOf(markOf(k), pi), last),
+    fwd(k) { const v = posOf(markOf(k), pi); if (v < last) { setMark(k, withPos(markOf(k), pi, v + 1)); return true; } return false; },
+    back(k) { const v = posOf(markOf(k), pi); if (v > 0) { setMark(k, withPos(markOf(k), pi, v - 1)); return true; } return false; },
+  };
+}
+function rects() { const m = {}; $$('#tasks .tag').forEach((t) => { m[t.dataset.k] = t.getBoundingClientRect(); }); return m; }
+function flip(before) {
+  $$('#tasks .tag').forEach((t) => {
+    const b = before[t.dataset.k]; if (!b) return;
+    const a = t.getBoundingClientRect(), dx = b.left - a.left, dy = b.top - a.top;
+    if (dx || dy) t.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.34,1.3,.64,1)' });
+  });
+}
+const phoneDot = (k) => (S.seats[String(k + 1)] ? ' ph' : '');
+let lastDoneAll = false;
+
+function drawTasks(animate) {
+  const el = $('#tasks');
+  $$('.w[data-w=tasks]').forEach((b) => b.classList.toggle('on', S.cfg.showTasks));
+  if (!tasksVisible()) { el.style.display = 'none'; if (S.tasksFull) setTasksFull(false); return; }
+  el.style.display = '';
+  const ph = S.phase, T = table(), names = roster();
+  const periods = ph.kind === 'end' ? T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length) : [[T[ph.cur], ph.cur]];
+  const useGrid = periods.some(([p]) => isPick(p));
+  const doneAll = (k) => periods.every(([p, pi]) => isDone(p, markOf(k), pi));
+  const done = names.filter((_, k) => doneAll(k)).length;
+  const title = ph.kind === 'end' ? '오늘 과제' : `${T[ph.cur].name} 과제${isPick(T[ph.cur]) ? ` · 골라서 ${needOf(T[ph.cur])}개` : ''}`;
+  const before = animate && !useGrid ? rects() : null;
+  el.classList.toggle('closed', S.cfg.tasksClosed && !S.tasksFull);
+  el.classList.toggle('full', S.tasksFull);
+  let body;
+  if (useGrid) {
+    // 골라서 하는 과제: 학생 × 과제 표, 칸을 눌러 체크
+    body = `<div class="tgrid"><table><thead>${ph.kind === 'end' ? `<tr><th></th>${periods.map(([p]) => `<th colspan="${tasksOf(p).length}" class="pg">${esc(p.name)} ${esc(p.subject)}${isPick(p) ? ` · ${needOf(p)}개` : ''}</th>`).join('')}<th></th></tr>` : ''}
+      <tr><th class="nm">학생</th>${periods.map(([p]) => tasksOf(p).map((t) => `<th>${esc(t)}</th>`).join('')).join('')}<th>완료</th></tr></thead><tbody>
+      ${names.map((n, k) => `<tr class="${doneAll(k) ? 'ok' : ''}"><td class="nm"><span class="tag${phoneDot(k)}"><small>${k + 1}</small>${esc(n)}</span></td>
+        ${periods.map(([p, pi]) => tasksOf(p).map((_, ti) => `<td><button class="ck ${isChecked(p, markOf(k), pi, ti) ? 'on' : ''}" data-k="${k}" data-pi="${pi}" data-ti="${ti}" aria-label="${esc(n)} ${ti + 1}번 과제">${ic('flag')}</button></td>`).join('')).join('')}
+        <td class="fin">${doneAll(k) ? '완료' : ''}</td></tr>`).join('')}</tbody></table></div>`;
+  } else {
+    const V = lineView(), last = V.last, P = names.map((_, k) => V.pos(k));
+    body = `<div class="track ${V.day ? 'day' : ''}">
+      ${V.stations.map((s, i) => `<div class="st ${i === last ? 'fin' : ''} ${V.day && s.p && (i === 0 || V.stations[i - 1].pi !== s.pi) ? 'pstart' : ''}">
+        <div class="mark">${i === last ? ic('flag') : i + 1}</div><div class="lbl">${s.p ? `<small class="pt">${esc(s.p)}</small>` : ''}${esc(s.label)}</div>
+        <div class="tags">${names.map((n, k) => (P[k] === i ? `<span class="tag${phoneDot(k)}" data-k="${k}"><small>${k + 1}</small>${esc(n)}</span>` : '')).join('')}</div>
+      </div>`).join('')}</div>`;
+    el._V = V;
+  }
+  el.innerHTML = `
+    <div class="tasks-head" data-a="th">
+      <h2>${esc(title)}</h2><span class="cnt num">${done}/${names.length}</span>
+      <span class="sp"></span>
+      <button class="reset" data-a="full">${ic('full')}${S.tasksFull ? '원래 크기' : '크게 보기'}</button>
+      <button class="reset" data-a="reset">${ic('reset')}${ph.kind === 'end' ? '오늘 과제 현황 초기화' : '이 과제 현황 초기화'}</button>
+      ${S.tasksFull ? '' : '<svg class="i chev"><use href="#i-chev"/></svg>'}
+    </div>
+    <div class="prog" style="${S.cfg.tasksClosed && !S.tasksFull ? '' : 'display:none'}"><i style="width:${names.length ? done / names.length * 100 : 0}%"></i></div>
+    <div class="tasks-body"><div>${body}</div></div>`;
+  el.querySelector('[data-a=th]').onclick = (e) => {
+    if (e.target.closest('button') || S.tasksFull) return;
+    S.cfg.tasksClosed = !S.cfg.tasksClosed; el.classList.toggle('closed', S.cfg.tasksClosed);
+    el.querySelector('.prog').style.display = S.cfg.tasksClosed ? '' : 'none'; saveCfg();
+  };
+  el.querySelector('[data-a=full]').onclick = (e) => { e.stopPropagation(); setTasksFull(!S.tasksFull); };
+  el.querySelector('[data-a=reset]').onclick = async (e) => {
+    e.stopPropagation();
+    if (!(await confirmBox('과제 현황을 초기화할까요?', '모든 학생의 체크가 처음으로 돌아가요.', '초기화'))) return;
+    names.forEach((_, k) => { let m = markOf(k); periods.forEach(([, pi]) => { m = withReset(m, pi); }); setMark(k, m); });
+    drawTasks(true);
+  };
+  if (useGrid) {
+    el.querySelectorAll('.ck').forEach((b) => {
+      b.onclick = () => {
+        const k = +b.dataset.k, pi = +b.dataset.pi, ti = +b.dataset.ti, p = T[pi], m = markOf(k);
+        if (isPick(p)) setMark(k, withToggle(m, pi, ti));
+        else setMark(k, withPos(m, pi, isChecked(p, m, pi, ti) ? ti : ti + 1));
+        fx('move', !isChecked(p, m, pi, ti)); drawTasks(true);
+      };
+    });
+  } else {
+    el.querySelectorAll('.tag').forEach((t) => {
+      let timer, long = false;
+      t.onpointerdown = () => { long = false; timer = setTimeout(() => { long = true; move(+t.dataset.k, -1); }, 550); };
+      t.onpointerup = () => { clearTimeout(timer); if (!long) move(+t.dataset.k, 1); };
+      t.onpointerleave = () => clearTimeout(timer);
+    });
+  }
+  if (before) flip(before);
+  const all = names.length && done === names.length;
+  if (animate && all && !lastDoneAll) { confetti(); fx('celebrate'); }
+  lastDoneAll = !!all;
+}
+function move(k, dir) {
+  const V = $('#tasks')._V; if (!V || !(dir > 0 ? V.fwd(k) : V.back(k))) return;
+  fx('move', dir > 0); drawTasks(true);
+}
+function setTasksFull(on) {
+  S.tasksFull = on;
+  document.body.classList.toggle('tasks-full', on);
+  if (on && !document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+  if (!on && document.fullscreenElement && !wbIsFull()) document.exitFullscreen().catch(() => {});
+  drawTasks();
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.tasksFull) setTasksFull(false); });
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && S.tasksFull) setTasksFull(false); });
+
+/* ---------- 시간 흐름 ---------- */
+function tick() {
+  drawClock();
+  if (S.day && ymd(now()) !== S.dateKey) { loadToday().then(applyAll); return; }
+  if (!S.day) return;
+  const prev = S.phase;
+  S.phase = getPhase(table(), nowSec());
+  const key = `${S.phase.kind}:${S.phase.cur ?? S.phase.next ?? ''}`;
+  if (key !== S.phaseKey) {
+    const first = !S.phaseKey;
+    S.phaseKey = key;
+    if (!first && S.cfg.sound.on && S.cfg.sound.auto && !S.jumping) {
+      if (S.phase.kind === 'class') FX.classStart();
+      else if (S.phase.kind === 'soon') FX.soon();
+      else if (S.phase.kind === 'break' && prev.kind === 'class') FX.breakStart();
+    }
+    drawStage(); drawTasks(); drawTT();
+  } else if (S.phase.kind === 'break') tickBreak();
+  if (S.phase.kind !== prev.kind || (S.phase.cur ?? -1) !== (prev.cur ?? -1)) drawDbg();
+  if (!$('#dbg').hidden) { const n = $('#dbg [data-r=now]'); if (n) n.textContent = nowLabel(); }
+}
+
+function applyAll() {
+  setVolume(S.cfg.sound.volume);
+  applyBg(); drawBellSel(); setLight(S.cfg.light.state, false); drawAcct(); drawBar();
+  S.phaseKey = ''; tick();
+}
+
+/* ---------- 위젯 바 ---------- */
+function drawBar() {
+  const s = $('.w[data-w=sound]'); s.innerHTML = `${ic(soundOn() ? 'sound' : 'mute')}<span>소리 ${soundOn() ? '켬' : '끔'}</span>`;
+  const w = $('.w[data-w=wake]'); w.classList.toggle('wake-on', !!S.cfg.wakeLock); w.querySelector('span').textContent = S.cfg.wakeLock ? '화면 켜둠' : '화면 켜두기';
+  $('#wbar').classList.toggle('mini', !!S.cfg.barMini);
+  $('#foldBar').style.transform = S.cfg.barMini ? 'rotate(180deg)' : '';
+  $$('.w[data-w=tasks]').forEach((b) => b.classList.toggle('on', S.cfg.showTasks));
+  const n = unreadCount(); const mb = $('.w[data-w=msg]');
+  mb.querySelector('.badge').textContent = n; mb.querySelector('.badge').hidden = !n;
+}
+const actions = {
+  bg: openBg, pick: openPick, noise: openNoise, light: openLight, timer: openTimer,
+  tasks: () => { S.cfg.showTasks = !S.cfg.showTasks; saveCfg(); drawTasks(); drawBar(); if (S.cfg.showTasks && !tasksVisible()) toast('과제 현황은 수업 중과 모든 수업이 끝난 뒤에 보여요'); },
+  students: openStudents, msg: openMessages,
+  tt: () => openSettings('table'),
+  sound: () => { S.cfg.sound.on = !S.cfg.sound.on; saveCfg(); drawBar(); },
+  wake: () => { S.cfg.wakeLock = !S.cfg.wakeLock; saveCfg(); drawBar(); wake(); },
+  full: () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else document.documentElement.requestFullscreen().catch(() => toast('이 브라우저는 전체 화면을 지원하지 않아요')); wake(); },
+};
+
+/* 화면 꺼짐 방지 */
+let lock = null;
+async function wake() {
+  try {
+    if (S.cfg.wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible' && !lock) {
+      lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; });
+    } else if (!S.cfg.wakeLock && lock) { await lock.release(); lock = null; }
+  } catch (e) { /* 지원 안 함 / 배터리 절약 */ }
+}
+
+/* ---------- 시간 이동 (확인용) ---------- */
+function nowLabel() { const d = now(); return `${d.getMonth() + 1}/${d.getDate()} ${d.toTimeString().slice(0, 8)}${S.offset ? ' (이동한 시간)' : ''}`; }
+function drawDbg() {
+  const el = $('#dbg'); if (el.hidden) return;
+  const targets = jumpTargets(table());
+  el.innerHTML = `<button class="x" data-a="x">✕</button><h4>시간 이동 <em>확인용</em></h4>
+    <div class="now" data-r="now">${nowLabel()}</div>
+    <div class="shift"><button class="o" data-s="-86400">-1일</button><button class="o" data-s="86400">+1일</button></div>
+    <div class="shift"><button class="o" data-s="-600">-10분</button><button class="o" data-s="-60">-1분</button><button class="o" data-s="60">+1분</button><button class="o" data-s="600">+10분</button></div>
+    <div class="lab">교시별로 바로 가기</div>
+    <div class="jumps">${targets.map((t) => `<button class="o" data-j="${t.sec}">${esc(t.label)}</button>`).join('') || '<span class="lab">오늘 시간표가 없어요</span>'}</div>
+    <div class="lab">쉬는 시간 타이머 모양</div>
+    <div class="g" style="grid-template-columns:1fr 1fr 1fr">${[['hour', '모래시계'], ['pie', '부채꼴'], ['num', '숫자만']].map(([k, n]) => `<button class="o ${S.cfg.timerType === k ? 'sel' : ''}" data-t="${k}">${n}</button>`).join('')}</div>
+    <button class="o" data-a="real" style="width:100%">실제 시간으로 돌아가기</button>`;
+  el.querySelector('[data-a=x]').onclick = () => { el.hidden = true; };
+  const jump = (fn) => { S.jumping = true; fn(); S.phaseKey = ''; tick(); S.jumping = false; drawDbg(); };
+  el.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => jump(() => { S.offset += +b.dataset.s; }); });
+  el.querySelectorAll('[data-j]').forEach((b) => { b.onclick = () => jump(() => { S.offset += +b.dataset.j - nowSec(); }); });
+  el.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => { S.cfg.timerType = b.dataset.t; saveCfg(); drawStage(); drawDbg(); }; });
+  el.querySelector('[data-a=real]').onclick = () => jump(() => { S.offset = 0; });
+}
+
+/* ---------- 시작 ---------- */
+function readCache() { try { return JSON.parse(localStorage.getItem('cb:cache') || 'null'); } catch (e) { return null; } }
+
+/** user: 허용된 선생님 계정, null이면 게스트 모드 */
+export async function startBoard(user) {
+  document.body.dataset.view = 'board';
+  S.user = user;
+  if (user) {
+    let cfg = null;
+    try { cfg = await store.loadConfig(user.uid); } catch (e) { const c = readCache(); cfg = c && c.uid === user.uid ? c.cfg : null; }
+    const first = !cfg;
+    S.cfg = normalizeConfig(cfg);
+    if (first) { saveCfg(); toast('처음 로그인했어요. 예시 시간표로 시작해요. 위젯 바의 \'시간표\'에서 바꿔 주세요', 4500); }
+    if (S.cfg.bg.kind === 'photo') { try { S.bgImage = await store.loadBgImage(user.uid); } catch (e) { S.bgImage = null; } }
+    store.purgeBefore(user.uid, semesterStart(now())).catch(() => {});
+  } else {
+    S.cfg = sampleConfig();
+    try { localStorage.removeItem('cb:cache'); } catch (e) { /* 무시 */ }
+  }
+  // 위젯·설정·학생 창 연결
+  setWinStore((k) => S.cfg.wins[k], (k, v) => { S.cfg.wins[k] = v; if (!guest()) saveCfg(); });
+  initWidgets({
+    cfg: () => S.cfg, save: () => { if (!guest()) saveCfg(); }, soundOn, roster, setLight,
+    bgImage: () => S.bgImage,
+    setBgImage: (d) => { S.bgImage = d; if (!guest()) store.saveBgImage(S.user.uid, d); },
+  });
+  initSettings({
+    cfg: () => S.cfg, day: () => S.day, todayWd: () => now().getDay(), guest,
+    isAdmin: () => !!S.user && store.isAdminEmail(S.user.email),
+    loadAllow: store.loadAllow, saveAllow: store.saveAllow, listRequests: store.listRequests,
+    approveRequest: store.approveRequest, denyRequest: store.denyRequest,
+    saveCfg, saveDay, applyAll,
+    resetAll: async () => {
+      if (!guest()) { try { await store.deleteConfig(S.user.uid); } catch (e) { /* 무시 */ } }
+      const keep = S.cfg.classCode;
+      S.cfg = sampleConfig(); S.cfg.classCode = keep; S.bgImage = null;
+      ['bg', 'pick', 'noise', 'light', 'timer'].forEach(closeWin);
+      saveCfg();
+      S.day.table = clone(S.cfg.weekTables[now().getDay()] || []); S.day.custom = false; saveDay();
+      applyAll();
+    },
+  });
+  initClassroom({
+    user: () => S.user, cfg: () => S.cfg, saveCfg, roster, soundOn,
+    onChange: () => { drawBar(); drawTasks(); },
+  });
+  if (user) {
+    onSeats((seats) => { S.seats = seats; drawTasks(); });
+    onMsgs(() => drawBar());
+  }
+
+  $$('#wbar .w[data-w]').forEach((b) => { b.onclick = () => actions[b.dataset.w](); });
+  $('#foldBar').onclick = () => { S.cfg.barMini = !S.cfg.barMini; saveCfg(); drawBar(); };
+  $('#bellBtn').onclick = () => {
+    const b = $('#bellBtn'); b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring');
+    ringBell(S.cfg.sound.bell, S.cfg.sound.custom); // 소리 끔 상태에서도 울림
+  };
+  $('#bellSel').onchange = () => { S.cfg.sound.bell = +$('#bellSel').value; saveCfg(); };
+  $('#timeMoveBtn').onclick = () => { const el = $('#dbg'); el.hidden = !el.hidden; drawDbg(); };
+  // 브라우저는 첫 클릭 전에는 소리를 막아서, 첫 클릭 때 소리 장치와 화면 켜두기를 준비
+  document.addEventListener('pointerdown', () => { unlockAudio(); wake(); }, { once: true });
+  document.addEventListener('visibilitychange', wake);
+
+  drawClock();
+  await loadToday();
+  applyAll();
+  setInterval(tick, 1000);
+  if (!user) toast('게스트 모드예요. 모든 기능을 써 볼 수 있지만 저장은 되지 않아요', 4000);
+}

@@ -1,15 +1,18 @@
 // 지난 기록: 날짜별 · 학생별 보기, 엑셀(CSV) 내려받기
 import { ic, esc, toast } from './ui.js';
-import { WEEKDAYS, semesterStart, semesterLabel } from './data.js';
+import { WEEKDAYS, semesterStart, semesterLabel, ymd } from './data.js';
+import { doneCount, needOf } from './tasks.js';
 
 let days = [], tab = 'day', sel = null, stu = 0, month = null, modal = null;
 
 const wdOf = (d) => WEEKDAYS[new Date(d + 'T00:00').getDay()];
 const pill = (a, n) => `<span class="pill ${a === n ? 'full' : a ? 'part' : 'none'}">${a}/${n}</span>`;
+/** k번째 학생(0부터)의 그날 그 교시 [한 개수, 완료 기준] */
 const doneOf = (day, pi, k) => {
-  const n = ((day.table[pi] || {}).tasks || []).length;
-  const v = ((day.progress || {})[pi] || [])[k] || 0;
-  return [Math.min(v, n), n];
+  const p = day.table[pi] || {};
+  let mark = (day.marks || []).find((m) => m.id === String(k + 1));
+  if (!mark) mark = { p: { [pi]: ((day.progress || {})[pi] || [])[k] || 0 }, k: { [pi]: ((day.picks || {})[pi] || [])[k] || 0 } }; // 예전 기록
+  return [Math.min(doneCount(p, mark, pi), needOf(p)), needOf(p)];
 };
 const withTasks = (day) => (day.table || []).map((p, i) => [p, i]).filter(([p]) => (p.tasks || []).length);
 
@@ -22,7 +25,7 @@ export async function openHistory(load) {
   try { days = (await load()).filter((d) => withTasks(d).length).sort((a, b) => a.date.localeCompare(b.date)); }
   catch (e) { modal.querySelector('.hist').innerHTML = `<p>기록을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p><button class="btn ghost" data-a="x">닫기</button>`; modal.querySelector('[data-a=x]').onclick = close; return; }
   sel = days.length ? days[days.length - 1].date : null;
-  month = (sel || new Date().toISOString()).slice(0, 7);
+  month = (sel || ymd(new Date())).slice(0, 7);
   draw();
 }
 function close() { if (modal) { modal.remove(); modal = null; } }
@@ -51,7 +54,7 @@ function dayView() {
   const first = new Date(y, mo - 1, 1).getDay(), last = new Date(y, mo, 0).getDate();
   const has = new Set(days.map((d) => d.date));
   const prev = monthShift(month, -1), next = monthShift(month, 1);
-  const canPrev = prev >= semesterStart().slice(0, 7), canNext = next <= new Date().toISOString().slice(0, 7);
+  const canPrev = prev >= semesterStart().slice(0, 7), canNext = next <= ymd(new Date()).slice(0, 7);
   let cal = WEEKDAYS.map((x) => `<b>${x}</b>`).join('') + '<span></span>'.repeat(first);
   for (let d = 1; d <= last; d++) {
     const key = `${month}-${String(d).padStart(2, '0')}`;
