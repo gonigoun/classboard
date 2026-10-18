@@ -10,7 +10,7 @@ let tab = 'table', dayKey = null, draft = null, dirty = false, modal = null;
 
 export function openSettings(start = 'table') {
   if (modal) return;
-  tab = start; dirty = false;
+  tab = start; dirty = false; allow = null;
   const wd = ctx.todayWd();
   dayKey = wd >= 1 && wd <= 5 ? 'today' : '1';
   loadDraft();
@@ -32,9 +32,9 @@ async function close() {
 
 function draw() {
   const box = modal.querySelector('.set');
-  const tabs = [['table', '시간표·과제'], ['roster', '학생 명단'], ['sound', '소리'], ['reset', '초기화']];
+  const tabs = [['table', '시간표·과제'], ['roster', '학생 명단'], ['sound', '소리'], ['reset', '초기화'], ...(ctx.isAdmin() ? [['allow', '허용할 선생님']] : [])];
   box.innerHTML = `<div class="set-h"><h2>설정</h2><div class="seg">${tabs.map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'sel' : ''}">${n}</button>`).join('')}</div><button class="x" data-a="close">${ic('x')}</button></div>
-    <div class="set-b">${tab === 'table' ? tableBody() : tab === 'roster' ? rosterBody() : tab === 'sound' ? soundBody() : resetBody()}</div>
+    <div class="set-b">${tab === 'table' ? tableBody() : tab === 'roster' ? rosterBody() : tab === 'sound' ? soundBody() : tab === 'allow' ? allowBody() : resetBody()}</div>
     ${tab === 'table' ? `<div class="set-f"><button class="btn ghost" data-a="addp">${ic('cal')} 교시 추가</button><span class="sp"></span>
        ${ctx.guest() ? '<span class="hint">게스트 모드에서는 저장되지 않아요</span>' : ''}<button class="btn" data-a="savet">저장</button></div>` : ''}`;
   box.querySelector('[data-a=close]').onclick = close;
@@ -48,6 +48,7 @@ function draw() {
   if (tab === 'roster') bindRoster(box);
   if (tab === 'sound') bindSound(box);
   if (tab === 'reset') bindReset(box);
+  if (tab === 'allow') bindAllow(box);
 }
 
 /* ---------- 시간표 ---------- */
@@ -194,5 +195,69 @@ function bindReset(box) {
   box.querySelector('[data-a=all]').onclick = async () => {
     if (!(await confirmBox('모든 설정을 초기화할까요?', '시간표, 명단, 배경, 소리 설정이 모두 처음 상태로 돌아가요. 되돌릴 수 없어요.', '초기화'))) return;
     await ctx.resetAll(); modal.remove(); modal = null; toast('모든 설정을 초기화했어요');
+  };
+}
+
+/* ---------- 허용할 선생님 (관리자만) ---------- */
+export const RULES = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'gonigoun@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+    function allowed() {
+      return isAdmin() || (request.auth != null && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in get(/databases/$(database)/documents/access/allow).data.emails);
+    }
+    // 허용할 선생님 목록: 관리자만 읽고 씀
+    match /access/allow {
+      allow read, write: if isAdmin();
+    }
+    // 선생님마다 자기 보드: 허용된 본인만 읽고 씀
+    match /boards/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid && allowed();
+    }
+  }
+}`;
+let allow = null;
+function allowBody() {
+  if (allow === null) return '<p class="hint">목록을 불러오는 중…</p>';
+  return `<div class="set-grid"><div class="set-sec"><h3>허용할 선생님</h3>
+      <p class="note">여기 있는 Google 계정만 로그인해서 자기 반 보드를 저장할 수 있어요. 각 선생님의 시간표·명단·기록은 서로 볼 수 없어요. 고운 선생님(관리자) 계정은 항상 허용돼요.</p>
+      <div class="row"><input type="text" data-r="em" placeholder="teacher@gmail.com" style="flex:1"><button class="btn" data-a="add">추가</button></div>
+      ${allow.length ? allow.map((e, i) => `<div class="row"><span style="flex:1">${esc(e)}</span><button class="mini rm" data-rm="${i}" title="허용 취소">${ic('x')}</button></div>`).join('') : '<p class="hint">아직 허용한 선생님이 없어요.</p>'}
+      </div>
+    <div class="set-sec"><h3>도움말</h3>
+      <p class="note">허용을 취소하면 그 선생님은 다음 로그인부터 게스트 모드로만 쓸 수 있어요. 그동안 저장한 기록은 서버에 남아 있다가, 다시 허용하면 그대로 보여요.</p>
+      <p class="note">이 목록이 지켜지려면 Firebase 보안 규칙에 아래 내용이 게시되어 있어야 해요.</p>
+      <div class="row"><button class="btn ghost" data-a="rules">보안 규칙 복사</button></div></div></div>`;
+}
+function bindAllow(box) {
+  if (allow === null) {
+    ctx.loadAllow().then((l) => { allow = l; draw(); }).catch(() => { allow = []; toast('목록을 불러오지 못했어요. 보안 규칙이 게시됐는지 확인해 주세요'); draw(); });
+    return;
+  }
+  const save = async () => {
+    try { await ctx.saveAllow(allow); toast('허용 목록을 저장했어요'); }
+    catch (e) { toast('저장하지 못했어요. 보안 규칙이 게시됐는지 확인해 주세요'); }
+    draw();
+  };
+  box.querySelector('[data-a=add]').onclick = () => {
+    const e = box.querySelector('[data-r=em]').value.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { toast('이메일 주소를 확인해 주세요'); return; }
+    if (allow.includes(e)) { toast('이미 허용된 계정이에요'); return; }
+    allow.push(e); save();
+  };
+  box.querySelectorAll('[data-rm]').forEach((b) => {
+    b.onclick = async () => {
+      const e = allow[+b.dataset.rm];
+      if (!(await confirmBox('허용을 취소할까요?', `${e} 계정은 다음 로그인부터 저장 기능을 쓸 수 없어요.`, '허용 취소'))) return;
+      allow.splice(+b.dataset.rm, 1); save();
+    };
+  });
+  box.querySelector('[data-a=rules]').onclick = async () => {
+    try { await navigator.clipboard.writeText(RULES); toast('보안 규칙을 복사했어요. Firebase 규칙 탭에 붙여 넣고 게시해 주세요'); }
+    catch (e) { toast('복사하지 못했어요'); }
   };
 }
