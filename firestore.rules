@@ -1,22 +1,81 @@
-// Firestore 보안 규칙 (Firebase 콘솔 → Firestore → 규칙 탭에 게시한 내용과 같아야 해요)
+// Firestore 보안 규칙
+// Firebase 콘솔 → Firestore → 규칙 탭에 게시한 내용과 같아야 해요.
+// 관리자: gonigoun@gmail.com / 허용 목록: access/allow / 선생님 보드: boards/{선생님 uid}
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAdmin() {
-      return request.auth != null && request.auth.token.email == 'gonigoun@gmail.com'
-        && request.auth.token.email_verified == true;
-    }
+    function signedIn() { return request.auth != null; }
+    function email() { return request.auth.token.email.lower(); }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function isAdmin() { return verified() && email() == 'gonigoun@gmail.com'; }
     function allowed() {
-      return isAdmin() || (request.auth != null && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in get(/databases/$(database)/documents/access/allow).data.emails);
+      return isAdmin() || (verified()
+        && exists(/databases/$(database)/documents/access/allow)
+        && email() in get(/databases/$(database)/documents/access/allow).data.emails);
     }
-    // 허용할 선생님 목록: 관리자만 읽고 씀
+    function owner(uid) { return signedIn() && request.auth.uid == uid && allowed(); }
+    function memberPath(uid) { return /databases/$(database)/documents/boards/$(uid)/members/$(request.auth.uid); }
+    function isMember(uid) { return signedIn() && exists(memberPath(uid)); }
+    function myNum(uid) { return get(memberPath(uid)).data.num; }
+    function classOpenFor(uid, code) {
+      let cl = get(/databases/$(database)/documents/classes/$(code));
+      return cl.data.teacherUid == uid && cl.data.open == true;
+    }
+
+    // 허용할 선생님 목록: 관리자만
     match /access/allow {
       allow read, write: if isAdmin();
     }
-    // 선생님마다 자기 보드: 허용된 본인만 읽고 씀
+
+    // 선생님 권한 요청: 본인이 만들고, 관리자가 보고 지움
+    match /requests/{rid} {
+      allow create, update: if signedIn() && rid == request.auth.uid && request.resource.data.email == email();
+      allow get: if signedIn() && (rid == request.auth.uid || isAdmin());
+      allow list, delete: if isAdmin();
+    }
+
+    // 학급 코드: 코드를 아는 사람만 하나씩 읽을 수 있음 (목록 보기 불가)
+    match /classes/{code} {
+      allow get: if signedIn();
+      allow create: if allowed() && request.resource.data.teacherUid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.teacherUid == request.auth.uid;
+    }
+
+    // 선생님 본인: 자기 보드 전체 (설정·하루 기록·학생 자리·메시지)
     match /boards/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid && allowed();
+      allow read, write: if owner(uid);
+    }
+
+    // 학생 입장: 자리(번호)와 명단을 한 번에 만들어야 하고, 입장이 열려 있어야 함
+    match /boards/{uid}/seats/{num} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && classOpenFor(uid, request.resource.data.code)
+        && getAfter(memberPath(uid)).data.num == num;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /boards/{uid}/members/{sid} {
+      allow get: if signedIn() && sid == request.auth.uid;
+      allow create: if signedIn() && sid == request.auth.uid
+        && classOpenFor(uid, request.resource.data.code)
+        && getAfter(/databases/$(database)/documents/boards/$(uid)/seats/$(request.resource.data.num)).data.uid == request.auth.uid;
+      allow delete: if signedIn() && sid == request.auth.uid;
+    }
+
+    // 학생: 오늘 시간표 보기, 자기 번호의 체크만 쓰기
+    match /boards/{uid}/days/{date} {
+      allow get: if isMember(uid);
+      match /marks/{num} {
+        allow get, create, update: if isMember(uid) && myNum(uid) == num;
+      }
+    }
+
+    // 학생 메시지: 자기 것만 보내고 읽음
+    match /boards/{uid}/msgs/{mid} {
+      allow create: if isMember(uid) && request.resource.data.uid == request.auth.uid
+        && request.resource.data.from == 's' && request.resource.data.num == myNum(uid)
+        && request.resource.data.text is string && request.resource.data.text.size() <= 300;
+      allow read: if isMember(uid) && resource.data.uid == request.auth.uid;
     }
   }
 }

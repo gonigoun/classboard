@@ -74,7 +74,10 @@ function periodRow(p, i) {
       <label>끝<input type="time" data-f="end" value="${esc(p.end)}"></label>
       <label>과목<input type="text" data-f="subject" value="${esc(p.subject)}"></label>
       <button class="mini rm" data-delp="${i}" title="교시 삭제">${ic('trash')}</button></div>
-    <div class="lists"><div><label>교과서·준비물</label>${listUI(p.items || [], 'items', i)}</div><div><label>과제 (정류장)</label>${listUI(p.tasks || [], 'tasks', i)}</div></div></div>`;
+    <div class="lists"><div><label>교과서·준비물</label>${listUI(p.items || [], 'items', i)}</div><div><label>과제</label>
+      <div class="mode row"><select data-f="mode"><option value="seq" ${p.mode !== 'pick' ? 'selected' : ''}>순서대로 (정류장)</option><option value="pick" ${p.mode === 'pick' ? 'selected' : ''}>골라서 하기</option></select>
+        ${p.mode === 'pick' ? `<label class="need">완료 기준 <input type="number" min="1" max="${Math.max(1, (p.tasks || []).length)}" data-f="need" value="${esc(p.need || (p.tasks || []).length || 1)}">개</label>` : ''}</div>
+      ${listUI(p.tasks || [], 'tasks', i)}</div></div></div>`;
 }
 function bindTable(box) {
   const mark = () => { dirty = true; };
@@ -86,7 +89,9 @@ function bindTable(box) {
   });
   box.querySelectorAll('.prow').forEach((row) => {
     const i = +row.dataset.i;
-    row.querySelectorAll('[data-f]').forEach((inp) => { inp.oninput = () => { draft[i][inp.dataset.f] = inp.value; mark(); }; });
+    row.querySelectorAll('[data-f]').forEach((inp) => {
+      inp.oninput = () => { draft[i][inp.dataset.f] = inp.dataset.f === 'need' ? Math.max(1, +inp.value || 1) : inp.value; mark(); if (inp.dataset.f === 'mode') draw(); };
+    });
     row.querySelector('[data-delp]').onclick = () => { draft.splice(i, 1); mark(); draw(); };
     row.querySelectorAll('.tlist').forEach((tl) => {
       const kind = tl.dataset.list, arr = draft[i][kind] = draft[i][kind] || [];
@@ -199,48 +204,27 @@ function bindReset(box) {
 }
 
 /* ---------- 허용할 선생님 (관리자만) ---------- */
-export const RULES = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function isAdmin() {
-      return request.auth != null && request.auth.token.email == 'gonigoun@gmail.com'
-        && request.auth.token.email_verified == true;
-    }
-    function allowed() {
-      return isAdmin() || (request.auth != null && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in get(/databases/$(database)/documents/access/allow).data.emails);
-    }
-    // 허용할 선생님 목록: 관리자만 읽고 씀
-    match /access/allow {
-      allow read, write: if isAdmin();
-    }
-    // 선생님마다 자기 보드: 허용된 본인만 읽고 씀
-    match /boards/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid && allowed();
-    }
-  }
-}`;
-let allow = null;
+let allow = null, reqs = [];
 function allowBody() {
   if (allow === null) return '<p class="hint">목록을 불러오는 중…</p>';
-  return `<div class="set-grid"><div class="set-sec"><h3>허용할 선생님</h3>
-      <p class="note">여기 있는 Google 계정만 로그인해서 자기 반 보드를 저장할 수 있어요. 각 선생님의 시간표·명단·기록은 서로 볼 수 없어요. 고운 선생님(관리자) 계정은 항상 허용돼요.</p>
+  return `<div class="set-grid"><div class="set-sec"><h3>권한 요청 ${reqs.length ? `<span class="badge">${reqs.length}</span>` : ''}</h3>
+      ${reqs.length ? reqs.map((r, i) => `<div class="req"><div><b>${esc(r.name)}</b> ${r.school ? `· ${esc(r.school)}` : ''}<br><small>${esc(r.email)} · ${new Date(r.at).toLocaleDateString('ko-KR')}</small>${r.note ? `<p class="note">${esc(r.note)}</p>` : ''}</div>
+        <div class="row"><button class="btn" data-ok="${i}">승인</button><button class="btn ghost" data-no="${i}">거절</button></div></div>`).join('') : '<p class="hint">새 권한 요청이 없어요.</p>'}
+      <p class="note">선생님이 시작 화면에서 '선생님'을 고르고 Google로 로그인하면 여기로 요청이 와요. 승인하면 바로 자기 반 보드를 쓸 수 있어요.</p></div>
+    <div class="set-sec"><h3>허용한 선생님</h3>
+      <p class="note">여기 있는 Google 계정만 선생님 보드를 저장할 수 있어요. 선생님마다 시간표·명단·기록은 따로예요. 고운 선생님(관리자) 계정은 항상 허용돼요.</p>
       <div class="row"><input type="text" data-r="em" placeholder="teacher@gmail.com" style="flex:1"><button class="btn" data-a="add">추가</button></div>
       ${allow.length ? allow.map((e, i) => `<div class="row"><span style="flex:1">${esc(e)}</span><button class="mini rm" data-rm="${i}" title="허용 취소">${ic('x')}</button></div>`).join('') : '<p class="hint">아직 허용한 선생님이 없어요.</p>'}
-      </div>
-    <div class="set-sec"><h3>도움말</h3>
-      <p class="note">허용을 취소하면 그 선생님은 다음 로그인부터 게스트 모드로만 쓸 수 있어요. 그동안 저장한 기록은 서버에 남아 있다가, 다시 허용하면 그대로 보여요.</p>
-      <p class="note">이 목록이 지켜지려면 Firebase 보안 규칙에 아래 내용이 게시되어 있어야 해요.</p>
-      <div class="row"><button class="btn ghost" data-a="rules">보안 규칙 복사</button></div></div></div>`;
+      <p class="note">허용을 취소하면 그 선생님은 다음부터 게스트 모드로만 쓸 수 있어요. 저장한 기록은 남아 있다가 다시 허용하면 그대로 보여요.</p></div></div>`;
 }
 function bindAllow(box) {
   if (allow === null) {
-    ctx.loadAllow().then((l) => { allow = l; draw(); }).catch(() => { allow = []; toast('목록을 불러오지 못했어요. 보안 규칙이 게시됐는지 확인해 주세요'); draw(); });
+    Promise.all([ctx.loadAllow(), ctx.listRequests().catch(() => [])]).then(([l, r]) => { allow = l; reqs = r.sort((a, b) => a.at - b.at); draw(); })
+      .catch(() => { allow = []; toast('목록을 불러오지 못했어요. 보안 규칙이 게시됐는지 확인해 주세요'); draw(); });
     return;
   }
   const save = async () => {
-    try { await ctx.saveAllow(allow); toast('허용 목록을 저장했어요'); }
-    catch (e) { toast('저장하지 못했어요. 보안 규칙이 게시됐는지 확인해 주세요'); }
+    try { await ctx.saveAllow(allow); toast('허용 목록을 저장했어요'); } catch (e) { toast('저장하지 못했어요. 보안 규칙이 게시됐는지 확인해 주세요'); }
     draw();
   };
   box.querySelector('[data-a=add]').onclick = () => {
@@ -252,12 +236,23 @@ function bindAllow(box) {
   box.querySelectorAll('[data-rm]').forEach((b) => {
     b.onclick = async () => {
       const e = allow[+b.dataset.rm];
-      if (!(await confirmBox('허용을 취소할까요?', `${e} 계정은 다음 로그인부터 저장 기능을 쓸 수 없어요.`, '허용 취소'))) return;
+      if (!(await confirmBox('허용을 취소할까요?', `${e} 계정은 다음부터 선생님 보드를 저장할 수 없어요.`, '허용 취소'))) return;
       allow.splice(+b.dataset.rm, 1); save();
     };
   });
-  box.querySelector('[data-a=rules]').onclick = async () => {
-    try { await navigator.clipboard.writeText(RULES); toast('보안 규칙을 복사했어요. Firebase 규칙 탭에 붙여 넣고 게시해 주세요'); }
-    catch (e) { toast('복사하지 못했어요'); }
-  };
+  box.querySelectorAll('[data-ok]').forEach((b) => {
+    b.onclick = async () => {
+      const r = reqs[+b.dataset.ok];
+      try { allow = await ctx.approveRequest(r, allow); reqs.splice(+b.dataset.ok, 1); toast(`${r.name} 선생님을 승인했어요`); } catch (e) { toast('승인하지 못했어요'); }
+      draw();
+    };
+  });
+  box.querySelectorAll('[data-no]').forEach((b) => {
+    b.onclick = async () => {
+      const r = reqs[+b.dataset.no];
+      if (!(await confirmBox('요청을 거절할까요?', `${r.name}(${r.email})의 요청을 지워요. 다시 요청할 수 있어요.`, '거절'))) return;
+      try { await ctx.denyRequest(r.id); reqs.splice(+b.dataset.no, 1); } catch (e) { toast('거절하지 못했어요'); }
+      draw();
+    };
+  });
 }
