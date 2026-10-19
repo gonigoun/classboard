@@ -3,7 +3,7 @@ import { $, $$, ic, esc, toast, confetti, confirmBox, setWinStore, closeWin, tim
 import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpGroups, mmss, isMorning, isLunch, isSpecial } from './data.js';
 import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
 import * as store from './store.js';
-import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets, setWbHead, onWbFull, isPhone, setWbSync, applyRemote, setTvRatio, myRatio } from './whiteboard.js';
+import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets, setWbHead, onWbFull, isPhone, setWbSync, applyRemote, setTvRatio, myRatio, setWbBell, ringWbBell } from './whiteboard.js';
 import { initWidgets, applyBg, applyTheme, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer } from './widgets.js';
 import { initSettings, openSettings } from './settings.js';
 import { openHistory } from './history.js';
@@ -527,7 +527,7 @@ function stable(o) {
   return JSON.stringify(o);
 }
 function ringNow(i) {
-  const b = $('#bellBtn'); b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring');
+  const b = $('#bellBtn'); b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); ringWbBell();
   ringBell(i ?? S.cfg.sound.bell, S.cfg.sound.custom); // 소리 끔 상태에서도 울림
 }
 /** 큰 화면(휴대폰이 아닌 화면)의 판서 비율을 알려 줌: 휴대폰에 'TV 화면 끝' 선 */
@@ -640,6 +640,7 @@ export async function startBoard(user) {
   // 휴대폰: 위젯 바는 자주 쓰는 4개 + '더보기'
   $('#moreBar').onclick = () => { const o = $('#wbar').classList.toggle('open'); $('#moreBar span').textContent = o ? '접기' : '더보기'; };
   $$('#wbar .w[data-w]').forEach((b) => b.addEventListener('click', () => { if (isPhone() && b.dataset.w !== 'sound' && b.dataset.w !== 'wake') { $('#wbar').classList.remove('open'); $('#moreBar span').textContent = '더보기'; } }));
+  setWbBell(() => $('#bellBtn').click()); // 판서 크게 보기의 집중 종도 같은 종 (다른 화면에도 울림)
   $('#bellBtn').onclick = () => {
     ringNow();
     if (!guest()) store.setLive(S.user.uid, { bell: { at: Date.now(), i: S.cfg.sound.bell, dev: DEV } }).catch(() => {}); // 다른 화면(TV)도 울림

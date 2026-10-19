@@ -50,6 +50,11 @@ function drawWbWidgets() {
   g.querySelectorAll('[data-wx]').forEach((b) => { b.onclick = () => wbWidgets[+b.dataset.wx][2](); });
 }
 
+/** 판서 크게 보기에서도 보이는 집중 종 버튼 */
+let bellFn = null;
+export function setWbBell(fn) { bellFn = fn; }
+export function ringWbBell() { const b = wbEl && wbEl.querySelector('.wb-bell'); if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
+
 /** 여러 화면 연동: s = { put(item), del(id), clear() } — 내가 그린 것을 보냄 */
 export function setWbSync(s) { sync = s; }
 /** 큰 화면(TV)의 세로/가로 비율: 휴대폰에 'TV 화면 끝' 선을 그려 줌 */
@@ -74,6 +79,7 @@ function buildWB() {
    </div>
    <div class="wb-canvas">
      <div class="wb-objs"></div><canvas class="base"></canvas><canvas class="live"></canvas><div class="tv-edge" hidden><span>TV 화면 끝<em> · 휴대폰을 가로로 돌리면 넓게 써요</em></span></div>
+     <button class="wb-bell" data-r="bell" title="집중 종">${ic('bell')}<span>집중</span></button>
      <div class="paste-hint">그림은 Ctrl+V로 붙여 넣거나 끌어다 놓아요 · 판서는 다음 날 지워져요</div>
    </div>`;
   const q = (r) => wbEl.querySelector(`[data-r="${r}"]`);
@@ -152,6 +158,7 @@ function buildWB() {
     const g = o._g, k = WB.scale;
     o.style.left = g.x * k + 'px'; o.style.top = g.y * k + 'px';
     if (g.w) o.style.width = g.w * k + 'px'; if (g.h) o.style.height = g.h * k + 'px';
+    if (o._t && !g.w) o.style.maxWidth = Math.max(60, (LW - g.x) * k) + 'px'; // 판서 오른쪽 끝(기준 폭)에서 줄바꿈 — 휴대폰·TV 같은 자리
     if (o._t) applyTxt(o);
   }
   function makeObj(cls, x, y, id) {
@@ -215,9 +222,10 @@ function buildWB() {
   }
   function sendTxt(o) {
     if (!sync || !o._t || !o.isConnected) return;
-    const ed = o.querySelector('[contenteditable]'), text = ed.textContent;
+    // 줄바꿈(엔터)까지 그대로 보냄: 글자만 보내면 두 줄이 한 줄로 붙어 버려요
+    const ed = o.querySelector('[contenteditable]'), text = ed.innerText.replace(/\n$/, '');
     if (!text.trim()) return;
-    const html = ed.querySelector('span') ? cleanHTML(ed.innerHTML) : '';
+    const html = /<(span|div|br|p)\b/i.test(ed.innerHTML) ? cleanHTML(ed.innerHTML) : '';
     sync.put({ id: o._id, k: 't', x: Math.round(o._g.x), y: Math.round(o._g.y), size: o._t.size, bold: !!o._t.bold, c: o._t.c, text, html, at: o._at || (o._at = Date.now()) });
   }
   function applyTxt(o) { const ed = o.querySelector('[contenteditable]'), t = o._t; ed.style.fontSize = t.size * WB.scale + 'px'; ed.style.fontWeight = t.bold ? 900 : 500; ed.style.color = t.c; }
@@ -247,7 +255,7 @@ function buildWB() {
       if (document.activeElement === ed || pendingIds.has(d.id)) return; // 내가 쓰는 중이면 그대로
       o._g.x = d.x; o._g.y = d.y; o._t = { size: d.size, bold: d.bold, c: d.c };
       if (d.html) { const h = cleanHTML(d.html); if (cleanHTML(ed.innerHTML) !== h) ed.innerHTML = h; }
-      else if (ed.textContent !== d.text || ed.querySelector('span')) ed.textContent = d.text;
+      else if (ed.innerText.replace(/\n$/, '') !== d.text || /<(span|div|br)\b/i.test(ed.innerHTML)) ed.textContent = d.text;
       place(o);
     });
   };
@@ -314,6 +322,8 @@ function buildWB() {
   q('file').onchange = (e) => { const f = e.target.files[0]; if (f) addImage(URL.createObjectURL(f)); e.target.value = ''; };
   q('full').onclick = () => setWbFull(!wbEl.classList.contains('full'));
   q('close').onclick = () => setWbFull(false);
+  q('bell').addEventListener('pointerdown', (e) => e.stopPropagation()); // 종을 눌러도 그림·글자가 생기지 않게
+  q('bell').onclick = (e) => { e.stopPropagation(); if (bellFn) bellFn(); else ringWbBell(); };
   area.addEventListener('dragover', (e) => e.preventDefault());
   area.addEventListener('drop', (e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith('image/')); if (f) addImage(URL.createObjectURL(f)); });
   WB.del = () => { if (WB.sel) removeObj(WB.sel, true); };
