@@ -182,6 +182,8 @@ function buildWB() {
     const t = data ? { size: data.size, bold: data.bold, c: data.c } : { ...WB.txt };
     const o = makeObj('txt', x, data ? y : y - t.size * 0.6, data && data.id); o._t = t;
     const ed = document.createElement('div'); ed.contentEditable = 'true'; o.appendChild(ed);
+    // 테두리 둘레 어디를 잡아도 옮길 수 있게 (위·아래·왼쪽·오른쪽 띠)
+    ['t', 'r', 'b', 'l'].forEach((k) => { const g = document.createElement('span'); g.className = 'edge ' + k; g.title = '끌어서 옮기기'; g.onpointerdown = (e) => drag(e, o, 'move'); o.appendChild(g); });
     if (data) ed.textContent = data.text || '';
     place(o);
     ed.addEventListener('paste', (e) => { const s = e.clipboardData.getData('text/plain'); if (s) { e.preventDefault(); document.execCommand('insertText', false, s); } });
