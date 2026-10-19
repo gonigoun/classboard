@@ -96,7 +96,7 @@ function tick() {
     phaseKey = key;
     let h;
     if (!day) h = '<h3>오늘 시간표를 기다리는 중</h3><p class="hint">선생님이 오늘 교실 보드를 열면 시간표가 나와요.</p>';
-    else if (ph.kind === 'class') h = `<div class="pill-b">${esc(T[ph.cur].name)} 수업 중</div><h2>${esc(T[ph.cur].subject || T[ph.cur].name)}</h2>${chips(T[ph.cur])}`;
+    else if (ph.kind === 'class') h = `<div class="pill-b">${T[ph.cur].morning ? '아침 시간이에요' : `${esc(T[ph.cur].name)} 수업 중`}</div><h2>${esc(T[ph.cur].subject || T[ph.cur].name)}</h2>${chips(T[ph.cur])}`;
     else if (ph.kind === 'break' || ph.kind === 'soon') h = `<div class="pill-b brk">${ph.kind === 'soon' ? '곧 수업 시작' : ph.lunch ? '점심시간이에요' : '쉬는 시간이에요'}</div><h2>다음 수업: ${esc(T[ph.next].name)} ${esc(T[ph.next].subject)}</h2><div class="num cd" data-r="cd">${mmss(ph.remain)}</div>${chips(T[ph.next])}`;
     else if (ph.kind === 'morning') h = `<div class="pill-b">좋은 아침이에요</div><h2>${esc(T[ph.next].name)} ${esc(T[ph.next].subject)} · ${esc(T[ph.next].start)} 시작</h2>${chips(T[ph.next])}`;
     else if (ph.kind === 'end') h = '<div class="pill-b ok">오늘 수업 끝!</div><h2>남은 과제가 있으면 마저 체크해요</h2>';
