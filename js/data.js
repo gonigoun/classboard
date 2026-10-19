@@ -18,6 +18,13 @@ export function morningPeriod(start = '08:40', end = '09:00', tasks = []) {
   return { name: '아침 시간', morning: true, start, end, subject: '아침 활동', items: [], tasks };
 }
 export const isMorning = (p) => !!(p && p.morning);
+/** 점심시간 칸 (아침 시간처럼 과제·판서를 쓸 수 있음) */
+export function lunchPeriod(start = '12:10', end = '13:00', tasks = []) {
+  return { name: '점심시간', lunch: true, start, end, subject: '점심 활동', items: [], tasks };
+}
+export const isLunch = (p) => !!(p && p.lunch);
+/** 교시가 아닌 칸 (아침 시간·점심시간) */
+export const isSpecial = (p) => isMorning(p) || isLunch(p);
 
 export function samplePeriods(weekday) {
   const order = ORDER[weekday] || ORDER[1];
@@ -116,17 +123,13 @@ export function getPhase(table, nowSec) {
   return { kind: 'end', last: P[P.length - 1].i };
 }
 
-/** 디버그 시간 이동용: 표의 주요 시각 목록 */
-export function jumpTargets(table) {
-  const out = [];
-  (table || []).forEach((p, i) => {
-    const s = toSec(p.start), e = toSec(p.end);
-    out.push({ label: `${p.name} 시작 2분 전`, sec: s - 110 });
-    out.push({ label: `${p.name} 수업 중`, sec: s + 300 });
-    out.push({ label: `${p.name} 종료 직전`, sec: e - 15 });
-    const n = table[i + 1];
-    if (n) out.push({ label: `${p.name} 뒤 쉬는 시간`, sec: e + 30 });
-  });
-  if (table && table.length) out.push({ label: '모든 수업 끝난 뒤', sec: toSec(table[table.length - 1].end) + 60 });
-  return out;
+/** 시간 이동(확인용): 칸마다 2분 전·시작·중간·끝나기 전·끝난 뒤 */
+export function jumpGroups(table) {
+  const P = (table || []).map((p, i) => ({ p, i, s: toSec(p.start), e: toSec(p.end) })).filter((x) => x.p.start && x.p.end).sort((a, b) => a.s - b.s);
+  const groups = P.map(({ p, s: st, e }) => ({
+    name: p.name, sub: p.subject || '', time: `${p.start}~${p.end}`,
+    items: [['2분 전', st - 110], ['시작', st + 2], ['중간', Math.round((st + e) / 2)], ['끝나기 전', e - 15], ['끝난 뒤', e + 30]],
+  }));
+  const extra = P.length ? [['첫 칸 전 (등교)', P[0].s - 20 * 60], ['모든 수업 끝난 뒤', P[P.length - 1].e + 60]] : [];
+  return { groups, extra };
 }

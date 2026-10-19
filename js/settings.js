@@ -1,6 +1,6 @@
 // 설정 창: 요일별 시간표 · 오늘만 바꾸기 · 학생 명단 · 소리 · 초기화
 import { ic, esc, toast, confirmBox } from './ui.js';
-import { WEEKDAYS, clone, sampleConfig, toSec, morningPeriod, isMorning } from './data.js';
+import { WEEKDAYS, clone, sampleConfig, toSec, morningPeriod, isMorning, lunchPeriod, isLunch, isSpecial } from './data.js';
 import { BELLS, ringBell, setVolume } from './sound.js';
 
 let ctx = null; // { cfg(), day(), todayWd(), saveCfg(), saveDay(), applyAll(), guest(), resetAll() }
@@ -37,7 +37,7 @@ function draw() {
   const tabs = [['table', '시간표·과제'], ['roster', '학생 명단'], ['sound', '소리'], ['reset', '초기화'], ...(ctx.isAdmin() ? [['allow', '허용할 선생님']] : [])];
   box.innerHTML = `<div class="set-h"><h2>설정</h2><div class="seg">${tabs.map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'sel' : ''}">${n}</button>`).join('')}</div><button class="x" data-a="close">${ic('x')}</button></div>
     <div class="set-b" data-tab="${tab}">${tab === 'table' ? tableBody() : tab === 'roster' ? rosterBody() : tab === 'sound' ? soundBody() : tab === 'allow' ? allowBody() : resetBody()}</div>
-    ${tab === 'table' ? `<div class="set-f"><button class="btn ghost" data-a="addp">${ic('cal')} 교시 추가</button>${draft.some(isMorning) ? '' : `<button class="btn ghost" data-a="addam">${ic('sunny')} 아침 시간 추가</button>`}<span class="sp"></span>
+    ${tab === 'table' ? `<div class="set-f"><button class="btn ghost" data-a="addp">${ic('cal')} 교시 추가</button>${draft.some(isMorning) ? '' : `<button class="btn ghost" data-a="addam">${ic('sunny')} 아침 시간 추가</button>`}${draft.some(isLunch) ? '' : `<button class="btn ghost" data-a="addlu">${ic('star')} 점심시간 추가</button>`}<span class="sp"></span>
        ${ctx.guest() ? '<span class="hint">게스트 모드에서는 저장되지 않아요</span>' : ''}<button class="btn" data-a="savet">저장</button></div>` : ''}`;
   box.querySelector('[data-a=close]').onclick = close;
   box.querySelectorAll('.seg [data-t]').forEach((b) => {
@@ -79,14 +79,14 @@ function timeSel(f, v) {
   return `<span class="tsel" data-tf="${f}"><select data-part="h" aria-label="시">${o(hs, h, '시')}</select><b>:</b><select data-part="m" aria-label="분">${o(ms, m, '분')}</select></span>`;
 }
 function periodRow(p, i) {
-  const am = isMorning(p);
-  return `<div class="prow ${am ? 'am' : ''}" data-i="${i}"><div class="top">
+  const am = isSpecial(p), lu = isLunch(p);
+  return `<div class="prow ${am ? 'am' : ''} ${lu ? 'lu' : ''}" data-i="${i}"><div class="top">
       <label>이름<input type="text" data-f="name" value="${esc(p.name)}"></label>
       <label>시작${timeSel('start', p.start)}</label>
       <label>끝${timeSel('end', p.end)}</label>
       <label>${am ? '활동' : '과목'}<input type="text" data-f="subject" value="${esc(p.subject)}"></label>
-      <button class="mini rm" data-delp="${i}" title="${am ? '아침 시간 삭제' : '교시 삭제'}">${ic('trash')}</button></div>
-    ${am ? '<p class="note">아침 시간: 1교시 전 시간이에요. 과제 현황과 판서를 쓸 수 있고, 시작할 때 종은 울리지 않아요.</p>' : ''}
+      <button class="mini rm" data-delp="${i}" title="${am ? `${esc(p.name)} 삭제` : '교시 삭제'}">${ic('trash')}</button></div>
+    ${lu ? '<p class="note">점심시간: 교시가 아닌 시간이에요. 아침 시간처럼 과제 현황과 판서를 쓸 수 있고, 화면에 남은 시간과 다음 수업이 보여요.</p>' : am ? '<p class="note">아침 시간: 1교시 전 시간이에요. 과제 현황과 판서를 쓸 수 있고, 시작할 때 종은 울리지 않아요.</p>' : ''}
     <div class="lists"><div><label>교과서·준비물</label>${listUI(p.items || [], 'items', i)}</div><div><label>과제</label>
       <div class="mode row"><select data-f="mode"><option value="seq" ${p.mode !== 'pick' ? 'selected' : ''}>순서대로 (정류장)</option><option value="pick" ${p.mode === 'pick' ? 'selected' : ''}>골라서 하기</option></select>
         ${p.mode === 'pick' ? `<label class="need">완료 기준 <input type="number" min="1" max="${Math.max(1, (p.tasks || []).length)}" data-f="need" value="${esc(p.need || (p.tasks || []).length || 1)}">개</label>` : ''}</div>
@@ -122,7 +122,7 @@ function bindTable(box) {
   box.querySelector('[data-a=addp]').onclick = () => {
     const last = draft[draft.length - 1];
     const st = last ? Math.ceil((toSec(last.end) + 600) / 300) * 300 : 9 * 3600;
-    draft.push({ name: `${draft.filter((p) => !isMorning(p)).length + 1}교시`, start: fmt(st), end: fmt(st + 2400), subject: '', items: [], tasks: [] });
+    draft.push({ name: `${draft.filter((p) => !isSpecial(p)).length + 1}교시`, start: fmt(st), end: fmt(st + 2400), subject: '', items: [], tasks: [] });
     mark(); draw(); // 보던 자리는 그대로, 새 교시는 맨 아래에 생겨요
     const rows = modal.querySelectorAll('.prow'); rows[rows.length - 1].classList.add('new');
     toast(`${draft[draft.length - 1].name}를 맨 아래에 추가했어요`);
@@ -133,6 +133,24 @@ function bindTable(box) {
     const end = first ? Math.min(toSec(first.start), 9 * 3600) : 9 * 3600;
     draft.unshift(morningPeriod(fmt(end - 1200), fmt(end))); mark();
     draw(); modal.querySelector('.set-b').scrollTop = 0;
+  };
+  const lu = box.querySelector('[data-a=addlu]');
+  if (lu) lu.onclick = () => {
+    // 교시 사이의 가장 긴 빈 시간(30분 이상)에 넣음. 없으면 12시쯤 끝나는 교시 뒤에 50분
+    const P = draft.map((p, i) => ({ p, i, s: toSec(p.start), e: toSec(p.end) })).sort((a, b) => a.s - b.s);
+    let best = null;
+    for (let k = 0; k < P.length - 1; k++) { const gap = P[k + 1].s - P[k].e; if (gap >= 1800 && (!best || gap > best.gap)) best = { gap, s: P[k].e, e: P[k + 1].s }; }
+    let st, en, note = '';
+    if (best) { st = best.s; en = best.e; }
+    else {
+      const ref = P.filter((x) => !isSpecial(x.p)).sort((a, b) => Math.abs(a.e - 12 * 3600) - Math.abs(b.e - 12 * 3600))[0];
+      st = ref ? ref.e : 12 * 3600; en = st + 3000; note = ' 뒤 교시와 시간이 겹치지 않는지 확인해 주세요';
+    }
+    const item = lunchPeriod(fmt(st), fmt(en));
+    let at = draft.findIndex((p) => toSec(p.start) >= en); if (at < 0) at = draft.length;
+    draft.splice(at, 0, item); mark(); draw();
+    const row = modal.querySelector(`.prow[data-i="${at}"]`); if (row) { row.classList.add('new'); row.scrollIntoView({ block: 'nearest' }); }
+    toast(`점심시간(${item.start}~${item.end})을 넣었어요.${note}`, note ? 4500 : 2600);
   };
   box.querySelector('[data-a=savet]').onclick = () => {
     const bad = draft.find((p) => !p.start || !p.end || toSec(p.end) <= toSec(p.start));

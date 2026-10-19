@@ -318,7 +318,7 @@ table.rec td.n{text-align:left;font-weight:700;white-space:nowrap}
 .rate b{display:block;font-size:24px;color:var(--ink)}
 .hist-f{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 @media (max-width:760px){.hist-grid{grid-template-columns:1fr}.hist{padding:16px}}
-.confetti{position:fixed;top:-20px;width:10px;height:14px;z-index:150;pointer-events:none;animation:fall linear forwards}
+.confetti-cv{position:fixed;inset:0;width:100vw;height:100vh;z-index:150;pointer-events:none}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
 .toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:260;background:#1E2433;color:#fff;padding:10px 18px;border-radius:12px;font-size:14px;animation:pop .3s}
 
@@ -835,3 +835,88 @@ body.wb-full .wb-bar .wb-wx{display:flex;border-right:0;border-left:2px solid va
 .obj.txt:has(.edge:hover){outline:2px dashed var(--blue);outline-offset:4px}
 .obj .edge:hover,.obj .edge:active{background:rgba(43,108,230,.10)}
 @media (pointer:coarse){.obj .edge{--e:24px}}
+
+/* 오늘 수업 끝: 별 다섯 개 반짝 */
+.done{position:relative}
+.done .stars{gap:min(2.2vw,22px);font-size:min(64px,8vh);align-items:flex-end}
+.done .stars .star{display:inline-flex;animation:twinkle 2.4s ease-in-out infinite;filter:drop-shadow(0 4px 10px rgba(255,190,0,.45))}
+.done .stars .s1,.done .stars .s3{font-size:.8em;margin-bottom:.35em}
+.done .stars .s0,.done .stars .s4{font-size:.62em;margin-bottom:.8em}
+.done .stars .s0{animation-delay:0s}.done .stars .s1{animation-delay:.25s}.done .stars .s2{animation-delay:.5s}.done .stars .s3{animation-delay:.75s}.done .stars .s4{animation-delay:1s}
+@keyframes twinkle{0%,100%{transform:scale(1) rotate(0);filter:drop-shadow(0 4px 10px rgba(255,190,0,.35)) brightness(1)}
+  40%{transform:scale(1.22) rotate(-10deg);filter:drop-shadow(0 0 18px rgba(255,214,60,.95)) brightness(1.18)}
+  60%{transform:scale(.94) rotate(6deg)}}
+.sparkles{position:absolute;inset:-10% -14%;pointer-events:none}
+.sparkles i{position:absolute;left:var(--x);top:var(--y);width:14px;height:14px;opacity:0;animation:spark 2.4s ease-in-out infinite;animation-delay:var(--d);
+  background:radial-gradient(circle,#fff 0 18%,transparent 20%),conic-gradient(from 45deg,transparent 0 22%,#FFD84D 23% 27%,transparent 28% 47%,#FFD84D 48% 52%,transparent 53% 72%,#FFD84D 73% 77%,transparent 78% 97%,#FFD84D 98%)}
+@keyframes spark{0%,100%{opacity:0;transform:scale(.3) rotate(0)}45%{opacity:1;transform:scale(1.4) rotate(45deg)}70%{opacity:.2;transform:scale(.8) rotate(80deg)}}
+@media (prefers-reduced-motion:reduce){.done .stars .star,.sparkles i{animation:none}.sparkles i{opacity:.7}}
+
+/* 타이머 알람 멈추기 */
+.tmr-stop{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:10px 18px;border-radius:999px;background:var(--red);color:#fff;font-weight:900;font-size:16px;box-shadow:0 6px 16px rgba(229,72,77,.4);animation:alarmpulse 1s ease-in-out infinite;z-index:2;white-space:nowrap}
+.tmr-stop svg{font-size:20px}
+.tmr-vis{position:relative}
+.btn.alarm{background:var(--red);color:#fff}
+@keyframes alarmpulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.55),0 6px 16px rgba(229,72,77,.4)}60%{box-shadow:0 0 0 14px rgba(229,72,77,0),0 6px 16px rgba(229,72,77,.4)}}
+
+/* ===== 위쪽 시간표: 눌러서 그 교시 다시 보기 ===== */
+.tt .p{cursor:pointer;font:inherit;color:inherit;border:0;text-align:center}
+.tt .p:hover:not(.now){background:#E6ECF7}
+.tt .p.past:hover{opacity:.8}
+.tt .p.pin{background:var(--purple);box-shadow:0 6px 14px rgba(123,92,250,.35)}
+.tt .p.pin small{color:#E4DCFF}
+.band.pinned{background:var(--purple)}
+.band .pin-tag{font-family:var(--body);font-size:14px;font-weight:700;background:rgba(255,255,255,.22);padding:3px 10px;border-radius:99px}
+.band .unpin{margin-left:auto;margin-right:96px;display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:12px;background:#fff;color:var(--purple);font-family:var(--body);font-weight:700;font-size:15px}
+.band .unpin svg{font-size:18px}
+@media (max-width:760px),(max-height:500px){.band .pin-tag{display:none}.band .unpin{margin-right:76px;font-size:12px;padding:5px 9px}}
+
+/* ===== 아침 시간·점심시간 화면: 남은 시간 + 다음 수업 ===== */
+.lesson.special{flex-direction:column;align-items:center;gap:18px;text-align:center}
+.lesson.special .chips{justify-content:center}
+.sp-left{display:flex;align-items:baseline;flex-wrap:wrap;justify-content:center;gap:10px 16px;padding:12px 22px;border-radius:20px;background:#FFF1E8}
+.sp-left span{font-family:var(--title);font-size:clamp(20px,2.2vw,32px);color:var(--muted)}
+.sp-left b{font-size:clamp(40px,5vw,80px);line-height:1;color:var(--coral)}
+.sp-left em{font-style:normal;font-family:var(--title);font-size:clamp(18px,1.8vw,28px);color:var(--ink);flex-basis:100%}
+.lesson.special.am .sp-left{background:var(--blue-soft)}.lesson.special.am .sp-left b{color:var(--blue-deep)}
+.lesson.special.lunch .sp-left{background:#FFF4D6}.lesson.special.lunch .sp-left b{color:#C27C00}
+.prow.lu{background:#FFF8E6;border-color:#F6DCA0}
+
+/* ===== 학생 폰: 교시 고르기 ===== */
+.ptabs{display:flex;gap:6px;overflow-x:auto;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:1px dashed var(--line);scrollbar-width:none}
+.ptabs::-webkit-scrollbar{display:none}
+.ptabs span{font-size:12px;font-weight:700;color:var(--muted);flex:none}
+.ptabs button{flex:none;padding:7px 12px;border-radius:999px;background:#F2F5FA;font-weight:700;font-size:14px;white-space:nowrap}
+.ptabs button.ok{background:var(--green-soft);color:#14774A}
+.ptabs button.sel{background:var(--blue);color:#fff}
+
+/* ===== 시간 이동: 모든 시각 ===== */
+.dbg{max-height:calc(100vh - 120px);overflow:auto;width:340px}
+.dbg .go-time input{flex:1.2;min-width:0;padding:7px 8px;border-radius:10px;border:0;background:#323A4F;color:#fff;font:inherit;font-size:14px;color-scheme:dark}
+.dbg .jgroups{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto;margin-bottom:10px;padding-right:2px}
+.dbg .jg{background:#262D40;border-radius:12px;padding:7px 8px}
+.dbg .jn{display:flex;align-items:baseline;gap:6px;margin-bottom:5px}
+.dbg .jn b{font-size:13px}.dbg .jn span{font-size:11px;color:#9AA3B8}
+.dbg .ji{display:flex;gap:4px;flex-wrap:wrap}
+.dbg .ji button.o{padding:5px 8px;font-size:12px;text-align:center;flex:1 0 auto}
+.dbg .jgroups > .ji{padding:2px 0}
+/* 스크롤바: 화면 색에 맞춰 가늘게 */
+*{scrollbar-width:thin;scrollbar-color:#C6CEDC transparent}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#C6CEDC;border-radius:99px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:#A9B4C8;background-clip:padding-box}
+.dbg,.dbg *{scrollbar-color:#4A5470 transparent}
+.dbg ::-webkit-scrollbar-thumb,.dbg::-webkit-scrollbar-thumb{background:#4A5470;background-clip:padding-box}
+.dbg ::-webkit-scrollbar-thumb:hover,.dbg::-webkit-scrollbar-thumb:hover{background:#5E6987;background-clip:padding-box}
+/* 알람 멈추기: 숫자를 가리지 않게 아래 줄에 */
+.tmr-vis:has(.tmr-stop){flex-wrap:wrap;justify-content:center;row-gap:8px}
+.tmr-stop{position:static;transform:none;margin:0 auto;flex:0 0 auto;order:3}
+.tmr-vis:has(.tmr-stop)::after{content:"";flex-basis:100%;order:2}
+/* 아침 시간·점심시간 화면: 한 화면에 다 들어오게 */
+.lesson.special{gap:min(14px,1.6vh)}
+.lesson.special .subject{font-size:min(9vw,15vh)}
+.lesson.special .chip{font-size:min(2.4vw,4vh);padding:8px 16px}
+.lesson.special .sp-left{padding:8px 18px}
+.lesson.special .sp-left b{font-size:min(5vw,9vh)}
+.lesson.special .sp-left span,.lesson.special .sp-left em{font-size:min(2vw,3.6vh)}

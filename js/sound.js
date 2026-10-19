@@ -2,6 +2,13 @@
 
 let AC = null, MASTER = null;
 let volume = 0.8;
+const LIVE = new Set(); // 지금 울리는(또는 곧 울릴) 소리 — 알람 멈추기용
+let urlAudio = null;
+/** 울리고 있는 소리를 모두 바로 멈춤 */
+export function stopSounds() {
+  LIVE.forEach((o) => { try { o.stop(); } catch (e) { /* 이미 끝남 */ } }); LIVE.clear();
+  if (urlAudio) { try { urlAudio.pause(); } catch (e) { /* 무시 */ } urlAudio = null; }
+}
 
 function ac() {
   if (!AC) {
@@ -33,6 +40,7 @@ function tone(freq, dur, type = 'sine', gain = 0.25, delay = 0) {
     g.gain.linearRampToValueAtTime(gain, t + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(MASTER); o.start(t); o.stop(t + dur + 0.05);
+    LIVE.add(o); o.onended = () => LIVE.delete(o);
   } catch (e) { /* 소리 장치 없음 */ }
 }
 
@@ -54,7 +62,7 @@ export const BELLS = [
 function playUrl(url) {
   return new Promise((resolve) => {
     try {
-      const a = new Audio(url);
+      const a = new Audio(url); urlAudio = a;
       a.volume = volume;
       a.play().then(() => resolve(true)).catch(() => resolve(false));
       a.onerror = () => resolve(false);

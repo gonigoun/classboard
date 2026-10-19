@@ -1,6 +1,6 @@
 // 위젯: 배경, 이름 뽑기, 소음 측정(실제 마이크), 신호등
 import { $, ic, esc, toast, confetti, openWin, closeWin, isWinOpen, timerSvg } from './ui.js';
-import { FX, BELLS } from './sound.js';
+import { FX, BELLS, ringBell, stopSounds } from './sound.js';
 
 let ctx = null; // app.js가 넘겨주는 { cfg(), save(), soundOn(), roster(), setLight(), bgImage(), setBgImage() }
 export function initWidgets(c) { ctx = c; }
@@ -274,14 +274,17 @@ export function openTimer() {
     </div>`, (w) => bindTimer(w), () => { TW = null; });
 }
 function setSec() { const t = ctx.cfg().timer || {}; return (+t.h || 0) * 3600 + (+t.m || 0) * 60 + (+t.s || 0); }
-const share = () => { if (ctx.timerSync) ctx.timerSync({ total: T.total, left: T.left, running: T.running, endAt: T.endAt, done: T.done, type: ctx.cfg().timer.type, bell: ctx.cfg().timer.bell, v: tnow() }); };
+const share = () => { if (ctx.timerSync) ctx.timerSync({ total: T.total, left: T.left, running: T.running, endAt: T.endAt, done: T.done, type: ctx.cfg().timer.type, bell: ctx.cfg().timer.bell, alarm: !!T.alarm, v: tnow() }); };
 function tDraw() {
   if (!TW) return;
   const w = TW, q = (r) => w.querySelector(`[data-r=${r}]`), a = (r) => w.querySelector(`[data-a=${r}]`), c = ctx.cfg();
   const f = T.total ? T.left / T.total : 0, type = c.timer.type, done = T.done;
   q('vis').className = 'tmr-vis t-' + type + (done ? ' done' : '');
-  q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
-  a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
+  q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '종료' : fmt(T.left)}</div>`
+    + (T.alarm ? `<button class="tmr-stop" data-a="stopal">${ic('mute')}알람 멈추기</button>` : '');
+  const st = q('vis').querySelector('[data-a=stopal]'); if (st) st.onclick = () => { tStopAlarm(); share(); };
+  a('go').textContent = T.running ? '일시 정지' : done ? (T.alarm ? '알람 멈추기' : '처음으로') : T.left < T.total ? '계속' : '시작';
+  a('go').classList.toggle('alarm', !!(done && T.alarm));
   q('set').classList.toggle('lock', T.running);
   // 시간 더하기·빼기 버튼은 언제나 보임. 시작 전에는 시간 고르기 버튼도 함께
   const busy = T.running || done || (T.total && T.left < T.total);
@@ -296,14 +299,19 @@ function tLoop() {
 }
 function tRun() { clearInterval(T.iv); if (T.running) { T.iv = setInterval(tLoop, 200); tLoop(); } else tDraw(); }
 function tFinish() {
-  T.done = true; tDraw();
-  const c = ctx.cfg(); const ring = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
-  clearInterval(T.ringing); ring(); let n = 1; T.ringing = setInterval(() => { if (n++ >= 3) clearInterval(T.ringing); ring(); }, 2600);
+  T.done = true; T.alarm = true; tDraw();
+  const c = ctx.cfg(); const ring = () => { if (T.alarm) ringBell(c.timer.bell, []); };
+  // 알람은 3번 울리고 저절로 멈춤. 중간에 '알람 멈추기'로 바로 끌 수 있음
+  clearInterval(T.ringing); clearTimeout(T.alarmEnd); ring(); let n = 1;
+  T.ringing = setInterval(() => { if (n++ >= 3) clearInterval(T.ringing); ring(); }, 2600);
+  T.alarmEnd = setTimeout(() => { T.alarm = false; tDraw(); }, 2600 * 2 + 2500);
   toast('타이머 시간이 끝났어요');
   if (!TW) openTimer(); // 창을 닫아 두었어도 끝나면 다시 띄움
 }
-function tReset() { clearInterval(T.ringing); clearInterval(T.iv); T.running = false; T.done = false; T.total = T.left = setSec(); tDraw(); }
-function tStart(sec) { clearInterval(T.ringing); T.done = false; if (sec) T.total = T.left = sec; T.running = true; T.endAt = tnow() + T.left * 1000; tRun(); }
+/** 알람만 멈춤 (화면은 '종료' 그대로) */
+function tStopAlarm() { clearInterval(T.ringing); clearTimeout(T.alarmEnd); T.alarm = false; stopSounds(); tDraw(); }
+function tReset() { if (T.alarm) tStopAlarm(); clearInterval(T.ringing); clearInterval(T.iv); T.running = false; T.done = false; T.total = T.left = setSec(); tDraw(); }
+function tStart(sec) { if (T.alarm) tStopAlarm(); clearInterval(T.ringing); T.done = false; if (sec) T.total = T.left = sec; T.running = true; T.endAt = tnow() + T.left * 1000; tRun(); }
 
 /** 다른 화면에서 바뀐 타이머를 그대로 따라감 (창이 닫혀 있으면 엶) */
 export function applyRemoteTimer(st) {
@@ -312,6 +320,7 @@ export function applyRemoteTimer(st) {
   T.total = st.total; T.running = !!st.running; T.endAt = st.endAt; T.done = !!st.done;
   T.left = T.running ? Math.max(0, (T.endAt - tnow()) / 1000) : st.left;
   if (!T.done) clearInterval(T.ringing);
+  if (T.alarm && (!T.done || st.alarm === false)) tStopAlarm(); // 다른 화면에서 알람을 멈추면 여기도 멈춤
   if (!TW && (T.running || T.done)) openTimer();
   tRun();
   if (T.done && !wasDone && !st.running) { /* 저쪽에서 끝남: 이쪽도 이미 끝났거나 곧 끝남 */ }
@@ -353,6 +362,7 @@ function bindTimer(w) {
     };
   });
   a('go').onclick = () => {
+    if (T.done && T.alarm) { tStopAlarm(); share(); return; }
     if (T.done) { tReset(); share(); return; }
     if (T.running) { T.left = Math.max(0, (T.endAt - tnow()) / 1000); T.running = false; tRun(); share(); return; }
     if (!T.total) { toast('시간을 먼저 정해 주세요'); return; }
