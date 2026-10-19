@@ -6,8 +6,8 @@ import { ic } from './ui.js';
 const PEN = ['#1E2433', '#E5484D', '#2B6CE6', '#22A86B', '#7B5CFA', '#FF8A00'];
 const PASTEL = ['#FFF176', '#FFCCBC', '#C8E6C9', '#B3E5FC', '#E1BEE7', '#F8BBD0'];
 const LW = 1400; // 기준 가로 칸 수 (교실 TV 판서 폭쯤: 글자 크기 140이 TV에서 대략 140px)
-const WB = { tool: 'pen', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, erase: { w: 40 }, txt: { size: 140, bold: false, c: PEN[0] }, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
-const TXT_SIZES = [24, 32, 48, 64, 80, 100, 140, 180, 240];
+const WB = { tool: 'text', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, erase: { w: 40 }, txt: { size: 110, bold: false, c: PEN[0] }, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
+const TXT_SIZES = [24, 32, 48, 64, 80, 100, 110, 140, 180, 240];
 let wbEl = null, wbWidgets = [], sync = null, pendingRemote = null;
 const fullCbs = [];
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -276,7 +276,7 @@ function buildWB() {
   area.addEventListener('drop', (e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith('image/')); if (f) addImage(URL.createObjectURL(f)); });
   WB.del = () => { if (WB.sel) removeObj(WB.sel, true); };
   drawWbWidgets();
-  setTool('pen');
+  setTool('text'); // 판서를 열면 글자 쓰기부터 (교사용 노트북·휴대폰 모두)
   if (pendingRemote) { const [l, p] = pendingRemote; pendingRemote = null; WB.applyRemote(l, p || new Set()); }
 }
 
