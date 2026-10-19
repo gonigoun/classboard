@@ -152,18 +152,38 @@ function bindTable(box) {
 }
 
 /* ---------- 학생 명단 ---------- */
+/** '번호 이름' 줄 → 번호 순 배열 (빈 번호는 '') */
+export function parseRoster(text) {
+  const out = [], used = new Set(), errs = []; let next = 1;
+  text.split('\n').map((s) => s.trim()).filter(Boolean).forEach((line) => {
+    const m = line.match(/^(\d{1,3})\s*(?:번)?[\s.,):·-]+\s*(.+)$/);
+    let n, name;
+    if (m) { n = +m[1]; name = m[2].trim(); } else { while (used.has(next)) next++; n = next; name = line; }
+    if (n < 1 || n > 99) { errs.push(`${line} (번호는 1~99)`); return; }
+    if (used.has(n)) { errs.push(`${n}번이 두 번 있어요`); return; }
+    used.add(n); next = Math.max(next, n + 1); out[n - 1] = name;
+  });
+  for (let i = 0; i < out.length; i++) if (!out[i]) out[i] = '';
+  return { list: out, errs };
+}
+const rosterText = (r) => r.map((n, i) => (n ? `${i + 1} ${n}` : '')).filter(Boolean).join('\n');
 function rosterBody() {
   return `<div class="set-grid"><div class="set-sec"><h3>학생 명단</h3>
-      <textarea data-r="roster" rows="16" placeholder="한 줄에 한 명씩, 1번부터 순서대로">${esc(ctx.cfg().roster.join('\n'))}</textarea>
-      <p class="note">한 줄에 한 명씩 적으면 순서대로 1번, 2번… 번호가 붙어요. 이름은 로그인한 선생님 기록에만 저장되고, 공개 저장소에는 올라가지 않아요.</p>
+      <textarea data-r="roster" rows="16" placeholder="번호와 이름을 한 줄에 한 명씩\n1 김하늘\n2 이서준\n4 최지우">${esc(rosterText(ctx.cfg().roster))}</textarea>
+      <p class="note"><b>번호 이름</b> 순서로 한 줄에 한 명씩 적어요 (예: <b>3 박도윤</b>). 번호를 빼고 이름만 적으면 앞 번호 다음으로 붙어요. 비는 번호(전학 등)는 그냥 빼면 돼요.</p>
       <div class="row end"><button class="btn" data-a="saver">저장</button></div></div>
-    <div class="set-sec"><h3>도움말</h3><p class="note">학생 수가 바뀌면 과제 정류장 이름표도 바로 바뀌어요. 이미 지난 날짜 기록에는 그날의 명단이 그대로 남아요.</p></div></div>`;
+    <div class="set-sec"><h3>학생 입장과 이름</h3><p class="note">학생은 폰에서 학급 코드와 <b>여기 적은 이름</b>을 넣어야 들어올 수 있어요(띄어쓰기는 상관없음). 번호는 여기 적은 번호로 저절로 정해져요.</p>
+      <p class="note">같은 이름이 두 명이면 '김민준A', '김민준B'처럼 다르게 적고 학생에게 알려 주세요.</p>
+      <p class="note">이름은 로그인한 선생님 기록에만 저장돼요. 학급 코드에는 이름 대신 알아볼 수 없는 지문만 올라가요. 이미 지난 날짜 기록에는 그날의 명단이 그대로 남아요.</p></div></div>`;
 }
 function bindRoster(box) {
-  box.querySelector('[data-a=saver]').onclick = () => {
-    const list = box.querySelector('[data-r=roster]').value.split('\n').map((s) => s.trim()).filter(Boolean);
+  box.querySelector('[data-a=saver]').onclick = async () => {
+    const { list, errs } = parseRoster(box.querySelector('[data-r=roster]').value);
+    if (errs.length) { toast('확인해 주세요: ' + errs.slice(0, 2).join(', '), 4000); return; }
     ctx.cfg().roster = list; ctx.saveCfg(); ctx.saveDay(); ctx.applyAll();
-    toast(`학생 ${list.length}명을 저장했어요`);
+    box.querySelector('[data-r=roster]').value = rosterText(list);
+    const dup = await ctx.rosterChanged();
+    toast(dup && dup.length ? `저장했어요. 같은 이름(${dup.join(', ')})은 폰으로 들어올 수 없어요. 다르게 적어 주세요` : `학생 ${list.filter((x) => x).length}명을 저장했어요`, dup && dup.length ? 5000 : 2600);
   };
 }
 

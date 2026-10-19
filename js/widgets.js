@@ -138,15 +138,15 @@ export function openPick() {
      <div class="note" data-r="left"></div>`, (w) => {
     const q = (r) => w.querySelector(`[data-r=${r}]`);
     const names = () => ctx.roster();
-    const upd = () => { q('left').textContent = `남은 학생 ${names().length - out.size}명`; };
+    const upd = () => { q('left').textContent = `남은 학생 ${names().filter((x) => x).length - out.size}명`; };
     upd();
     let spinning = false;
     q('rs').onclick = () => { out.clear(); upd(); q('pn').textContent = '누구일까?'; q('pn').classList.remove('hit'); };
     q('go').onclick = () => {
       if (spinning) return;
       const n = names();
-      const pool = n.map((_, i) => i).filter((i) => !q('ex').checked || !out.has(i));
-      if (!n.length) { toast('시간표 설정에서 학생 명단을 먼저 넣어 주세요'); return; }
+      const pool = n.map((_, i) => i).filter((i) => n[i] && (!q('ex').checked || !out.has(i)));
+      if (!n.some((x) => x)) { toast('시간표 설정에서 학생 명단을 먼저 넣어 주세요'); return; }
       if (!pool.length) { toast('모두 뽑혔어요. 다시 시작을 눌러 주세요'); return; }
       const pn = q('pn'); pn.classList.remove('hit'); spinning = true;
       const target = pool[Math.floor(Math.random() * pool.length)];
@@ -250,85 +250,105 @@ async function startMic(w) {
 }
 
 /* ---------- 타이머 (떠 있는 창, 크기 자유) ---------- */
-let T = null; // { total, endAt, left, running, raf, ringing }
+// 타이머 상태는 창을 닫아도 남아 있고(돌던 타이머는 계속 감), 같은 선생님 계정의 다른 화면과 연동돼요.
+// endAt은 실제 시각(ms)이라 휴대폰에서 시작해도 TV에서 같은 시각에 끝나요.
 const fmt = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60; return (h ? `${h}:${String(m).padStart(2, '0')}` : String(m).padStart(2, '0')) + ':' + String(s).padStart(2, '0'); };
+let T = { total: 0, left: 0, running: false, endAt: 0, iv: 0, ringing: 0, done: false };
+let TW = null; // 열린 타이머 창
+const tnow = () => Date.now();
 export function openTimer() {
   const c = ctx.cfg();
   c.timer = { type: 'hour', bell: 0, h: 0, m: 5, s: 0, ...(c.timer || {}) };
   openWin('timer', '타이머', 'clock', `<div class="tmr">
       <div class="tmr-vis" data-r="vis"></div>
       <div class="tmr-set" data-r="set">
-        <label><input type="number" min="0" max="23" data-u="h" value="${c.timer.h}"><span>시</span></label>
-        <label><input type="number" min="0" max="59" data-u="m" value="${c.timer.m}"><span>분</span></label>
-        <label><input type="number" min="0" max="59" data-u="s" value="${c.timer.s}"><span>초</span></label>
+        <label><input type="number" min="0" max="23" data-u="h" value="${c.timer.h}" inputmode="numeric"><span>시</span></label>
+        <label><input type="number" min="0" max="59" data-u="m" value="${c.timer.m}" inputmode="numeric"><span>분</span></label>
+        <label><input type="number" min="0" max="59" data-u="s" value="${c.timer.s}" inputmode="numeric"><span>초</span></label>
       </div>
       <div class="row tmr-pre" data-r="pre">${[[30, '30초'], [60, '1분'], [180, '3분'], [300, '5분'], [600, '10분']].map(([v, n]) => `<button class="btn ghost" data-p="${v}">${n}</button>`).join('')}</div>
       <div class="row tmr-adj" data-r="adj" hidden>${[[-60, '−1분'], [-30, '−30초'], [30, '+30초'], [60, '+1분'], [300, '+5분']].map(([v, n]) => `<button class="btn ghost ${v < 0 ? 'minus' : ''}" data-adj="${v}">${n}</button>`).join('')}</div>
-      <div class="row"><button class="btn" data-a="go">시작</button><button class="btn ghost" data-a="reset">다시</button><span class="sp"></span>
+      <div class="row tmr-go"><button class="btn" data-a="go">시작</button><button class="btn ghost" data-a="reset">다시</button><span class="sp"></span>
         <div class="seg sm">${[['hour', '모래시계'], ['pie', '부채꼴'], ['num', '숫자만']].map(([k, n]) => `<button data-t="${k}" class="${c.timer.type === k ? 'sel' : ''}">${n}</button>`).join('')}</div></div>
-      <label class="chk">끝날 때 소리 <select data-r="bell">${BELLS.map((b, i) => `<option value="${i}" ${i === c.timer.bell ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select><button class="btn ghost" data-a="test">들어 보기</button></label>
-    </div>`, (w) => bindTimer(w), () => { stopTimer(); });
+      <label class="chk tmr-bell">끝날 때 소리 <select data-r="bell">${BELLS.map((b, i) => `<option value="${i}" ${i === c.timer.bell ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select><button class="btn ghost" data-a="test">들어 보기</button></label>
+    </div>`, (w) => bindTimer(w), () => { TW = null; });
 }
-function setSec() { const t = ctx.cfg().timer; return (+t.h || 0) * 3600 + (+t.m || 0) * 60 + (+t.s || 0); }
-function stopTimer() { if (T) { clearInterval(T.raf); clearInterval(T.ringing); } T = null; }
+function setSec() { const t = ctx.cfg().timer || {}; return (+t.h || 0) * 3600 + (+t.m || 0) * 60 + (+t.s || 0); }
+const share = () => { if (ctx.timerSync) ctx.timerSync({ total: T.total, left: T.left, running: T.running, endAt: T.endAt, done: T.done, type: ctx.cfg().timer.type, bell: ctx.cfg().timer.bell, v: tnow() }); };
+function tDraw() {
+  if (!TW) return;
+  const w = TW, q = (r) => w.querySelector(`[data-r=${r}]`), a = (r) => w.querySelector(`[data-a=${r}]`), c = ctx.cfg();
+  const f = T.total ? T.left / T.total : 0, type = c.timer.type, done = T.done;
+  q('vis').className = 'tmr-vis t-' + type + (done ? ' done' : '');
+  q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
+  a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
+  q('set').classList.toggle('lock', T.running);
+  // 진행 중(멈춤·끝 포함)에는 '시간 더하기·빼기' 버튼, 처음에는 시간 고르기 버튼
+  const busy = T.running || done || (T.total && T.left < T.total);
+  q('pre').hidden = !!busy; q('adj').hidden = !busy;
+  w.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('sel', x.dataset.t === type));
+}
+function tLoop() {
+  if (!T.running) return;
+  T.left = Math.max(0, (T.endAt - tnow()) / 1000);
+  tDraw();
+  if (T.left <= 0) { T.running = false; clearInterval(T.iv); tFinish(); }
+}
+function tRun() { clearInterval(T.iv); if (T.running) { T.iv = setInterval(tLoop, 200); tLoop(); } else tDraw(); }
+function tFinish() {
+  T.done = true; tDraw();
+  const c = ctx.cfg(); const ring = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
+  clearInterval(T.ringing); ring(); let n = 1; T.ringing = setInterval(() => { if (n++ >= 3) clearInterval(T.ringing); ring(); }, 2600);
+  toast('타이머 시간이 끝났어요');
+  if (!TW) openTimer(); // 창을 닫아 두었어도 끝나면 다시 띄움
+}
+function tReset() { clearInterval(T.ringing); clearInterval(T.iv); T.running = false; T.done = false; T.total = T.left = setSec(); tDraw(); }
+function tStart(sec) { clearInterval(T.ringing); T.done = false; if (sec) T.total = T.left = sec; T.running = true; T.endAt = tnow() + T.left * 1000; tRun(); }
+
+/** 다른 화면에서 바뀐 타이머를 그대로 따라감 (창이 닫혀 있으면 엶) */
+export function applyRemoteTimer(st) {
+  const c = ctx.cfg(); c.timer = { type: 'hour', bell: 0, h: 0, m: 5, s: 0, ...(c.timer || {}), type: st.type || 'hour', bell: st.bell ?? 0 };
+  const wasDone = T.done;
+  T.total = st.total; T.running = !!st.running; T.endAt = st.endAt; T.done = !!st.done;
+  T.left = T.running ? Math.max(0, (T.endAt - tnow()) / 1000) : st.left;
+  if (!T.done) clearInterval(T.ringing);
+  if (!TW && (T.running || T.done)) openTimer();
+  tRun();
+  if (T.done && !wasDone && !st.running) { /* 저쪽에서 끝남: 이쪽도 이미 끝났거나 곧 끝남 */ }
+}
 function bindTimer(w) {
+  TW = w;
   const c = ctx.cfg(), q = (r) => w.querySelector(`[data-r=${r}]`), a = (r) => w.querySelector(`[data-a=${r}]`);
-  T = { total: setSec(), left: setSec(), running: false, endAt: 0, raf: 0, ringing: 0 };
-  const draw = () => {
-    const f = T.total ? T.left / T.total : 0, type = c.timer.type, done = T.total && T.left <= 0;
-    q('vis').className = 'tmr-vis t-' + type + (done ? ' done' : '');
-    q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
-    a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
-    q('set').classList.toggle('lock', T.running);
-    // 진행 중(멈춤·끝 포함)에는 '시간 더하기·빼기' 버튼, 처음에는 시간 고르기 버튼
-    const busy = T.running || (T.total && T.left < T.total);
-    q('pre').hidden = !!busy; q('adj').hidden = !busy;
-  };
-  const loop = () => {
-    if (!T || !T.running) return;
-    T.left = Math.max(0, (T.endAt - performance.now()) / 1000);
-    draw();
-    if (T.left <= 0) { T.running = false; clearInterval(T.raf); finish(); }
-  };
-  const finish = () => {
-    draw(); const ring = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
-    ring(); let n = 1; T.ringing = setInterval(() => { if (n++ >= 3) clearInterval(T.ringing); ring(); }, 2600);
-    if (isWinOpen('timer')) toast('타이머 시간이 끝났어요');
-  };
-  const reset = () => { clearInterval(T.ringing); T.running = false; clearInterval(T.raf); T.total = T.left = setSec(); draw(); };
+  if (!T.total && !T.running) { T.total = T.left = setSec(); }
   w.querySelectorAll('[data-u]').forEach((inp) => {
-    inp.oninput = () => { const max = inp.dataset.u === 'h' ? 23 : 59; c.timer[inp.dataset.u] = Math.max(0, Math.min(max, Math.floor(+inp.value || 0))); if (!T.running) reset(); };
-    inp.onchange = () => { inp.value = c.timer[inp.dataset.u]; ctx.save(); };
+    inp.oninput = () => { const max = inp.dataset.u === 'h' ? 23 : 59; c.timer[inp.dataset.u] = Math.max(0, Math.min(max, Math.floor(+inp.value || 0))); if (!T.running) tReset(); };
+    inp.onchange = () => { inp.value = c.timer[inp.dataset.u]; ctx.save(); share(); };
   });
-  w.querySelectorAll('[data-p]').forEach((b) => { b.onclick = () => { const v = +b.dataset.p; c.timer.h = Math.floor(v / 3600); c.timer.m = Math.floor(v / 60) % 60; c.timer.s = v % 60; w.querySelectorAll('[data-u]').forEach((i) => { i.value = c.timer[i.dataset.u]; }); ctx.save(); reset(); }; });
-  w.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => { c.timer.type = b.dataset.t; w.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('sel', x === b)); ctx.save(); draw(); }; });
+  w.querySelectorAll('[data-p]').forEach((b) => { b.onclick = () => { const v = +b.dataset.p; c.timer.h = Math.floor(v / 3600); c.timer.m = Math.floor(v / 60) % 60; c.timer.s = v % 60; w.querySelectorAll('[data-u]').forEach((i) => { i.value = c.timer[i.dataset.u]; }); ctx.save(); tReset(); share(); }; });
+  w.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => { c.timer.type = b.dataset.t; ctx.save(); tDraw(); share(); }; });
   q('bell').onchange = () => { c.timer.bell = +q('bell').value; ctx.save(); };
   a('test').onclick = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
-  a('reset').onclick = reset;
+  a('reset').onclick = () => { tReset(); share(); };
   // 진행 중에 시간 더하기·빼기: 남은 시간과 전체 시간을 같이 바꿔서 모래시계·부채꼴 양도 따라 바뀜
   w.querySelectorAll('[data-adj]').forEach((b) => {
     b.onclick = () => {
       const v = +b.dataset.adj;
-      if (T.total && T.left <= 0) { // 끝난 뒤 더하면 그 시간만큼 다시 시작
-        if (v <= 0) return;
-        clearInterval(T.ringing); T.total = T.left = v;
-        T.running = true; T.endAt = performance.now() + v * 1000; clearInterval(T.raf); T.raf = setInterval(loop, 200); loop(); return;
-      }
-      const left = T.running ? Math.max(0, (T.endAt - performance.now()) / 1000) : T.left;
-      const nl = Math.max(1, left + v);
+      if (T.done) { if (v > 0) { tStart(v); share(); } return; } // 끝난 뒤 더하면 그 시간만큼 다시 시작
+      const left = T.running ? Math.max(0, (T.endAt - tnow()) / 1000) : T.left;
       if (v < 0 && left <= 1) return;
+      const nl = Math.max(1, left + v);
       T.total = Math.max(nl, T.total + (nl - left));
       T.left = nl;
-      if (T.running) T.endAt = performance.now() + nl * 1000;
+      if (T.running) T.endAt = tnow() + nl * 1000;
       b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
-      draw();
+      tDraw(); share();
     };
   });
   a('go').onclick = () => {
-    if (T.total && T.left <= 0) { clearInterval(T.ringing); reset(); return; }
-    if (T.running) { T.running = false; clearInterval(T.raf); draw(); return; }
+    if (T.done) { tReset(); share(); return; }
+    if (T.running) { T.left = Math.max(0, (T.endAt - tnow()) / 1000); T.running = false; tRun(); share(); return; }
     if (!T.total) { toast('시간을 먼저 정해 주세요'); return; }
-    T.running = true; T.endAt = performance.now() + T.left * 1000; clearInterval(T.raf); T.raf = setInterval(loop, 200); loop();
+    tStart(); share();
   };
-  draw();
+  tRun();
 }

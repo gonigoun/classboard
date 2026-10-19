@@ -29,6 +29,8 @@ export function onStatus(cb) { statusCb = cb; }
 function setStatus() { statusCb(!navigator.onLine ? 'off' : waiting.size ? 'ing' : 'ok'); }
 window.addEventListener('online', setStatus);
 window.addEventListener('offline', setStatus);
+/** 아직 서버로 보내지 않은 내 변경이 있는지 (다른 화면 변경을 받을 때 내 것을 덮어쓰지 않게) */
+export const isPending = (key) => waiting.has(key);
 function write(key, fn, delay = 1200) {
   clearTimeout(timers[key]);
   const ver = (waiting.get(key) || 0) + 1;
@@ -73,6 +75,22 @@ export const denyRequest = (rid) => B.del(`requests/${rid}`);
 export const loadConfig = (uid) => B.get(`boards/${uid}/config/main`);
 export const saveConfig = (uid, cfg) => write('config', () => B.set(`boards/${uid}/config/main`, cfg));
 export const loadDay = (uid, date) => B.get(`boards/${uid}/days/${date}`);
+export const watchConfig = (uid, cb, onErr) => B.watchDoc(`boards/${uid}/config/main`, cb, onErr);
+export const watchTeacherDay = (uid, date, cb, onErr) => B.watchDoc(`boards/${uid}/days/${date}`, cb, onErr);
+
+/* ---------- 같은 선생님 계정의 여러 화면 연동 (TV ↔ 휴대폰) ---------- */
+// live/now: 집중 종·판서 켜기·타이머·큰 화면 비율 / wb/*: 판서 선·글자
+export const watchLive = (uid, cb, onErr) => B.watchDoc(`boards/${uid}/live/now`, cb, onErr);
+export const setLive = (uid, patch) => B.set(`boards/${uid}/live/now`, patch, true);
+export const watchWb = (uid, cb, onErr) => B.watchCol(`boards/${uid}/wb`, null, cb, onErr);
+export const putWb = (uid, item) => B.set(`boards/${uid}/wb/${item.id}`, item);
+export const delWb = (uid, id) => B.del(`boards/${uid}/wb/${id}`);
+export async function clearWb(uid, before) {
+  let rows = await B.list(`boards/${uid}/wb`);
+  if (before) rows = rows.filter((r) => (r.at || 0) < before);
+  for (let i = 0; i < rows.length; i += 400) await B.batch(rows.slice(i, i + 400).map((r) => ({ op: 'del', path: `boards/${uid}/wb/${r.id}` })));
+  return rows.length;
+}
 export const saveDay = (uid, date, day) => write('day:' + date, () => B.set(`boards/${uid}/days/${date}`, { ...day, updatedAt: Date.now() }));
 export async function loadBgImage(uid) { const d = await B.get(`boards/${uid}/config/bgimage`); return d ? d.data : null; }
 export const saveBgImage = (uid, data) => write('bgimage', () => (data ? B.set(`boards/${uid}/config/bgimage`, { data }) : B.del(`boards/${uid}/config/bgimage`)));
@@ -118,23 +136,46 @@ export async function clearSeat(uid, seat) {
   await B.batch([{ op: 'del', path: `boards/${uid}/seats/${seat.id}` }, { op: 'del', path: `boards/${uid}/members/${seat.uid}` }]);
 }
 
-/** 학생 입장: 코드 확인 → 번호가 비어 있으면 자리와 명단을 함께 만듦 (자동 승인) */
-export async function joinClass(user, code, num, name) {
-  code = String(code || '').trim().toUpperCase();
+/* ---------- 명단 이름으로 입장 ---------- */
+// 학급 코드 문서에는 이름을 그대로 두지 않고 '코드+이름'의 지문(해시)만 둬요: 지문 → 번호
+export const normName = (n) => String(n || '').replace(/\s+/g, '').trim();
+export async function nameHash(code, name) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${String(code).toUpperCase()}:${normName(name)}`));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+/** 명단(번호 순 배열, 빈칸 가능)을 학급 코드 문서에 반영. 같은 이름이 둘 이상이면 그 이름은 빼고 알려 줌 */
+export async function syncClassNames(code, roster) {
+  if (!code) return { dup: [] };
+  const count = {}; roster.forEach((n) => { const k = normName(n); if (k) count[k] = (count[k] || 0) + 1; });
+  const nh = {}, dup = Object.keys(count).filter((k) => count[k] > 1);
+  for (let i = 0; i < roster.length; i++) {
+    const k = normName(roster[i]); if (!k || count[k] > 1) continue;
+    nh[await nameHash(code, k)] = String(i + 1);
+  }
+  await B.set(`classes/${code}`, { nh, nhAt: Date.now() }, true);
+  return { dup };
+}
+
+/** 학생 입장: 코드 + 이름 → 선생님 명단의 번호로 자리와 명단을 함께 만듦 (자동 승인) */
+export async function joinClass(user, code, name) {
+  code = String(code || '').trim().toUpperCase(); name = String(name || '').trim();
   const cl = await getClass(code).catch(() => null);
   if (!cl) throw fail('학급 코드를 찾지 못했어요. 칠판의 코드를 다시 확인해 주세요');
   if (!cl.open) throw fail('지금은 학생 입장이 닫혀 있어요. 선생님께 열어 달라고 말해 주세요');
-  const tuid = cl.teacherUid; const n = String(num);
+  const nh = await nameHash(code, name);
+  const n = cl.nh && cl.nh[nh];
+  if (!n) throw fail('선생님 명단에 없는 이름이에요. 선생님이 적은 이름과 똑같이 적어 주세요 (띄어쓰기는 상관없어요)');
+  const tuid = cl.teacherUid;
   const seat = await B.get(`boards/${tuid}/seats/${n}`).catch(() => null);
-  if (seat && seat.uid !== user.uid) throw fail(`${n}번은 벌써 다른 계정이 쓰고 있어요. 내 번호가 맞다면 선생님께 말해 주세요`);
+  if (seat && seat.uid !== user.uid) throw fail(`${name}(${n}번) 자리는 벌써 다른 계정이 쓰고 있어요. 선생님께 자리를 비워 달라고 말해 주세요`);
   if (!seat) {
-    const info = { name, email: user.email, code, at: Date.now() };
+    const info = { name, nh, email: user.email, code, at: Date.now() };
     await B.batch([
       { op: 'set', path: `boards/${tuid}/seats/${n}`, data: { uid: user.uid, ...info } },
       { op: 'set', path: `boards/${tuid}/members/${user.uid}`, data: { num: n, ...info } },
     ]);
   }
-  return { tuid, code, num: n, name, title: cl.title };
+  return { tuid, code, num: String(n), name, title: cl.title };
 }
 export const getMember = (tuid, uid) => B.get(`boards/${tuid}/members/${uid}`);
 export const watchMember = (tuid, uid, cb, onErr) => B.watchDoc(`boards/${tuid}/members/${uid}`, cb, onErr);
@@ -147,6 +188,8 @@ export async function leaveClass(tuid, uid, num) {
 /* ---------- 메시지 ---------- */
 const mid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 export const sendMsg = (tuid, m) => B.set(`boards/${tuid}/msgs/${mid()}`, { ...m, from: 's', at: Date.now() });
+/** 선생님이 먼저 보내기 (답장과 같은 모양) */
+export const teacherMsg = (tuid, m) => B.set(`boards/${tuid}/msgs/${mid()}`, { ...m, from: 't', at: Date.now(), read: true });
 export const replyMsg = (tuid, m) => B.set(`boards/${tuid}/msgs/${mid()}`, { ...m, from: 't', at: Date.now(), read: true });
 export const watchMsgs = (tuid, uid, cb, onErr) => B.watchCol(`boards/${tuid}/msgs`, uid ? ['uid', '==', uid] : null, cb, onErr);
 export const markRead = (tuid, id) => B.set(`boards/${tuid}/msgs/${id}`, { read: true }, true);
