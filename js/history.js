@@ -65,6 +65,7 @@ function dayView() {
   if (day) {
     const ps = withTasks(day), names = day.roster || [];
     const rows = names.map((n, k) => {
+      if (!n) return '';
       let a = 0, t = 0;
       const c = ps.map(([, pi]) => { const [x, nn] = doneOf(day, pi, k); a += x; t += nn; return `<td>${pill(x, nn)}</td>`; }).join('');
       return `<tr><td class="n">${k + 1} ${esc(n)}</td>${c}<td><b>${t ? Math.round(a / t * 100) : 0}%</b></td></tr>`;
@@ -77,7 +78,7 @@ function dayView() {
 
 function stuView() {
   const names = days[days.length - 1].roster || [];
-  if (stu >= names.length) stu = 0;
+  if (stu >= names.length || !names[stu]) stu = Math.max(0, names.findIndex((x) => x));
   let A = 0, T = 0, full = 0;
   const rows = [...days].reverse().map((d) => {
     let a = 0, t = 0;
@@ -85,7 +86,7 @@ function stuView() {
     A += a; T += t; if (t && a === t) full++;
     return `<tr><td class="n">${+d.date.slice(5, 7)}/${+d.date.slice(8)} (${wdOf(d.date)})</td><td style="text-align:left">${c}</td></tr>`;
   }).join('');
-  return `<div class="hist-grid"><div class="studs">${names.map((n, k) => `<button class="${k === stu ? 'sel' : ''}" data-k="${k}">${k + 1} ${esc(n)}</button>`).join('')}</div>
+  return `<div class="hist-grid"><div class="studs">${names.map((n, k) => (n ? `<button class="${k === stu ? 'sel' : ''}" data-k="${k}">${k + 1} ${esc(n)}</button>` : '')).join('')}</div>
     <div><p class="rec-title">${stu + 1}번 ${esc(names[stu] || '')}</p>
     <div class="rate"><div>과제 완료율<b class="num">${T ? Math.round(A / T * 100) : 0}%</b></div><div>모두 끝낸 날<b class="num">${full}/${days.length}일</b></div></div>
     <table class="rec"><tr><th style="text-align:left">날짜</th><th style="text-align:left">교시별 결과</th></tr>${rows}</table></div></div>`;
@@ -95,7 +96,7 @@ function stuView() {
 function csv() {
   const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
   const lines = [['날짜', '요일', '번호', '이름', '교시', '과목', '한 과제 수', '전체 과제 수', '완료'].map(q).join(',')];
-  days.forEach((d) => (d.roster || []).forEach((n, k) => withTasks(d).forEach(([p, pi]) => {
+  days.forEach((d) => (d.roster || []).forEach((n, k) => n && withTasks(d).forEach(([p, pi]) => {
     const [x, t] = doneOf(d, pi, k);
     lines.push([d.date, wdOf(d.date), k + 1, n, p.name, p.subject, x, t, x === t ? 'O' : ''].map(q).join(','));
   })));

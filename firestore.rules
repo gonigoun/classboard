@@ -21,6 +21,8 @@ service cloud.firestore {
       let cl = get(/databases/$(database)/documents/classes/$(code));
       return cl.data.teacherUid == uid && cl.data.open == true;
     }
+    // 선생님 명단의 이름(지문) → 번호가 맞는지
+    function nameNum(code, nh) { return get(/databases/$(database)/documents/classes/$(code)).data.nh[nh]; }
 
     // 허용할 선생님 목록: 관리자만
     match /access/allow {
@@ -46,11 +48,12 @@ service cloud.firestore {
       allow read, write: if owner(uid);
     }
 
-    // 학생 입장: 자리(번호)와 명단을 한 번에 만들어야 하고, 입장이 열려 있어야 함
+    // 학생 입장: 자리(번호)와 명단을 한 번에 만들어야 하고, 입장이 열려 있어야 하고, 선생님 명단의 이름과 번호가 맞아야 함
     match /boards/{uid}/seats/{num} {
       allow get: if signedIn();
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
         && classOpenFor(uid, request.resource.data.code)
+        && nameNum(request.resource.data.code, request.resource.data.nh) == num
         && getAfter(memberPath(uid)).data.num == num;
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
@@ -58,6 +61,7 @@ service cloud.firestore {
       allow get: if signedIn() && sid == request.auth.uid;
       allow create: if signedIn() && sid == request.auth.uid
         && classOpenFor(uid, request.resource.data.code)
+        && nameNum(request.resource.data.code, request.resource.data.nh) == request.resource.data.num
         && getAfter(/databases/$(database)/documents/boards/$(uid)/seats/$(request.resource.data.num)).data.uid == request.auth.uid;
       allow delete: if signedIn() && sid == request.auth.uid;
     }

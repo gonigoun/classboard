@@ -3,11 +3,11 @@ import { $, $$, ic, esc, toast, confetti, confirmBox, setWinStore, closeWin, tim
 import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpTargets, mmss, isMorning } from './data.js';
 import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
 import * as store from './store.js';
-import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets } from './whiteboard.js';
-import { initWidgets, applyBg, openBg, openPick, openNoise, openLight, openTimer } from './widgets.js';
+import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets, setWbHead, onWbFull, isPhone, setWbSync, applyRemote, setTvRatio, myRatio } from './whiteboard.js';
+import { initWidgets, applyBg, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer } from './widgets.js';
 import { initSettings, openSettings } from './settings.js';
 import { openHistory } from './history.js';
-import { initClassroom, openStudents, openMessages, onSeats, onMsgs, unreadCount } from './classroom.js';
+import { initClassroom, openStudents, openMessages, onSeats, onMsgs, unreadCount, syncNames } from './classroom.js';
 import { tasksOf, isPick, needOf, isDone, isChecked, posOf, withPos, withToggle, withReset } from './tasks.js';
 
 /* ---------- 상태 ---------- */
@@ -41,6 +41,7 @@ const fx = (name, ...a) => { if (soundOn()) FX[name](...a); };
 function warnGuest() { if (!S.guestWarned) { S.guestWarned = true; toast('게스트 모드라서 바꾼 내용은 저장되지 않아요'); } }
 function saveCfg() {
   if (guest()) { warnGuest(); return; }
+  LIVE.lastCfg = stable(S.cfg);
   try { localStorage.setItem('cb:cache', JSON.stringify({ uid: S.user.uid, cfg: S.cfg })); } catch (e) { /* 저장 공간 막힘 */ }
   store.saveConfig(S.user.uid, S.cfg);
 }
@@ -89,6 +90,13 @@ async function loadToday() {
       const t = Date.now();
       rows.forEach((r) => { if (!S.recent[r.id] || t - S.recent[r.id] > 2500) S.marks[r.id] = { p: r.p || {}, k: r.k || {} }; });
       drawTasks(true);
+    }, () => {}));
+    // 다른 화면에서 '오늘만 바꾸기'를 하면 여기도 바뀜
+    S.unsubs.push(store.watchTeacherDay(S.user.uid, key, (d) => {
+      if (!d || !S.day || store.isPending('day:' + key)) return;
+      if (stable(d.table || []) === stable(S.day.table) && !!d.custom === !!S.day.custom) return;
+      if (!d.custom && !S.day.custom) return; // 요일 기본 시간표는 설정 연동으로 맞춰짐
+      S.day.table = d.table || []; S.day.custom = !!d.custom; S.phaseKey = ''; tick();
     }, () => {}));
     if (day.table.length) saveDay(); // 오늘 시간표를 그날 기록으로 남김 (학생 폰도 이걸 봄)
   }
@@ -156,47 +164,75 @@ document.addEventListener('click', () => { const m = $('.menu'); if (m) m.remove
 /* ---------- 가운데 수업 화면 ---------- */
 const chips = (p) => `<div class="chips">${(p.items || []).map((b) => `<span class="chip">${esc(b)}</span>`).join('')}</div>`;
 
+/** 판서를 쓸 수 있는 때: 수업·아침 시간·쉬는 시간·점심시간·곧 시작 */
+const wbOK = () => ['class', 'soon', 'break', 'morning'].includes(S.phase.kind);
+/** 판서 위쪽 줄: 과목과 준비물, 수업이 아닐 때는 남은 시간 */
+function wbHead() {
+  const ph = S.phase, T = table();
+  const left = (label) => `<span class="wb-left"><small>${label}</small><b class="num" data-r="wbl">${mmss(ph.remain)}</b></span>`;
+  if (ph.kind === 'class') {
+    const p = T[ph.cur];
+    return `<div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}${isMorning(p) ? left('아침 시간 남은 시간') : ''}`;
+  }
+  const p = T[ph.next] || {};
+  const title = ph.kind === 'break' ? (ph.lunch ? '점심시간' : '쉬는 시간') : ph.kind === 'soon' ? `곧 ${esc(p.name)}` : '좋은 아침이에요';
+  return `<div class="subject wb-ph ${ph.kind}">${title}</div>${left(`${esc(p.name)}${p.subject ? ' ' + esc(p.subject) : ''}까지`)}`;
+}
+const wbBtn = () => `<button class="wb-toggle ${S.wbOn ? 'on' : ''}" data-a="wb">${ic('pen')}판서</button>`;
+
 function drawStage() {
   const ph = S.phase, st = $('#stage'), T = table();
   document.body.classList.toggle('is-break', ph.kind === 'break');
-  $('#app').className = 'mode-' + (ph.kind === 'morning' ? 'class' : ph.kind);
-  if (ph.kind !== 'class' && S.wbOn) { S.wbOn = false; if (wbIsFull()) setWbFull(false); }
+  $('#app').className = 'mode-' + (ph.kind === 'morning' ? 'class' : ph.kind) + (S.wbOn && wbOK() ? ' wb-on' : '');
+  if (!wbOK() && S.wbOn) { S.wbOn = false; if (wbIsFull()) setWbFull(false); }
+  if (S.wbOn) { // 판서 중: 판서 화면 (수업 중이면 위에 교시 띠)
+    st.innerHTML = (ph.kind === 'class' ? `<div class="band">${esc(T[ph.cur].name)}</div>` : '') + wbBtn();
+    st.appendChild(getWB(wbHead())); bindWbBtn(st);
+    requestAnimationFrame(() => { fitWB(); if (isPhone() && !wbIsFull()) setWbFull(true); else publishRatio(); });
+    return;
+  }
   let h = '';
   if (ph.kind === 'class') {
     const p = T[ph.cur];
-    h = `<div class="band">${esc(p.name)}</div><button class="wb-toggle ${S.wbOn ? 'on' : ''}" data-a="wb">${ic('pen')}판서</button>`;
-    if (!S.wbOn) h += `<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
+    h = `<div class="band">${esc(p.name)}</div>${wbBtn()}`;
+    h += `<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
   } else if (ph.kind === 'soon') {
     const p = T[ph.next];
-    h = `<div class="band soon">${ic('bell')}곧 ${esc(p.name)}</div><div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
+    h = `<div class="band soon">${ic('bell')}곧 ${esc(p.name)}</div>${wbBtn()}<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
   } else if (ph.kind === 'break') {
     const p = T[ph.next], tt = S.cfg.timerType;
     // 숫자만 고르면 큰 숫자 하나만 보여 줌 (글자·숫자·준비물이 겹치지 않게 세로로 쌓음)
-    h = `<div class="stage-body"><div class="brk pop t-${tt}">
+    h = `${wbBtn()}<div class="stage-body"><div class="brk pop t-${tt}">
         ${tt === 'num' ? '' : `<div class="timer-vis">${timerSvg(tt, ph.remain / ph.total)}</div>`}
         <div class="brk-info"><div class="brk-title">${ph.lunch ? '점심시간' : '쉬는 시간'}</div>
           <div class="brk-time num" data-r="bt">${mmss(ph.remain)}</div>
           <div class="next"><h3>곧 ${esc(p.name)} ${esc(p.subject)}</h3>${chips(p)}</div></div></div></div>`;
   } else if (ph.kind === 'morning') {
     const p = T[ph.next];
-    h = `<div class="stage-body"><div class="morning pop"><div class="hello">좋은 아침이에요!</div><div class="first">${esc(p.name)} ${esc(p.subject)}</div><div class="hint">${esc(p.start)} 시작</div>${chips(p)}</div></div>`;
+    h = `${wbBtn()}<div class="stage-body"><div class="morning pop"><div class="hello">좋은 아침이에요!</div><div class="first">${esc(p.name)} ${esc(p.subject)}</div><div class="hint">${esc(p.start)} 시작</div>${chips(p)}</div></div>`;
   } else if (ph.kind === 'end') {
     h = `<div class="stage-body"><div class="done pop"><div class="stars">${ic('star')}${ic('star')}${ic('star')}</div><div class="t">오늘 수업 끝!</div></div></div>`;
   } else {
     h = `<div class="stage-body"><div class="none pop"><div class="t">오늘은 수업이 없어요</div><p class="hint" style="text-align:center">시간표는 위젯 바의 '설정'에서 바꿀 수 있어요${guest() ? ' · 확인용 \'시간 이동\'으로 평일 화면을 볼 수 있어요' : ''}</p></div></div>`;
   }
   st.innerHTML = h;
-  const wbb = st.querySelector('[data-a=wb]');
-  if (wbb) {
-    wbb.onclick = () => {
-      S.wbOn = !S.wbOn;
-      if (S.wbOn && !S.cfg.tasksClosed) { S.cfg.tasksClosed = true; drawTasks(); }
-      if (!S.wbOn && wbIsFull()) setWbFull(false);
-      drawStage();
-    };
-    if (S.wbOn) { const p = T[ph.cur]; st.appendChild(getWB(`<div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}`)); requestAnimationFrame(fitWB); }
-  }
+  bindWbBtn(st);
 }
+function bindWbBtn(st) {
+  const wbb = st.querySelector('[data-a=wb]'); if (!wbb) return;
+  wbb.onclick = () => setWbOn(!S.wbOn, true);
+}
+function setWbOn(on, mine) {
+  if (on === S.wbOn) return;
+  S.wbOn = on;
+  if (S.wbOn && !S.cfg.tasksClosed && !isPhone()) { S.cfg.tasksClosed = true; drawTasks(); }
+  if (!S.wbOn && wbIsFull()) setWbFull(false);
+  drawStage();
+  // 휴대폰에서 판서를 켜면 TV는 판서를 크게 띄움 (휴대폰 판서가 TV에 넓게 보이도록)
+  if (mine && !guest()) store.setLive(S.user.uid, { wb: { on, full: isPhone(), at: Date.now(), dev: DEV } }).catch(() => {});
+}
+// 휴대폰에서는 판서를 화면 가득 띄우고, '판서 닫기'를 누르면 판서를 끔
+onWbFull((on) => { if (!on && isPhone() && S.wbOn) setWbOn(false, true); if (on || !isPhone()) publishRatio(); });
 function tickBreak() {
   const ph = S.phase; if (ph.kind !== 'break') return;
   const tv = $('#stage [data-r=tv]');
@@ -252,7 +288,7 @@ function drawTasks(animate) {
   const periods = ph.kind === 'end' ? T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length) : [[T[ph.cur], ph.cur]];
   const useGrid = periods.some(([p]) => isPick(p));
   const doneAll = (k) => periods.every(([p, pi]) => isDone(p, markOf(k), pi));
-  const done = names.filter((_, k) => doneAll(k)).length;
+  const done = names.filter((n, k) => n && doneAll(k)).length, total = names.filter((n) => n).length; // 명단 빈 번호는 빼고 셈
   const title = ph.kind === 'end' ? '오늘 과제' : `${T[ph.cur].name} 과제${isPick(T[ph.cur]) ? ` · 골라서 ${needOf(T[ph.cur])}개` : ''}`;
   const before = animate && !useGrid ? rects() : null;
   el.classList.toggle('closed', S.cfg.tasksClosed && !S.tasksFull);
@@ -262,27 +298,27 @@ function drawTasks(animate) {
     // 골라서 하는 과제: 학생 × 과제 표, 칸을 눌러 체크
     body = `<div class="tgrid"><table><thead>${ph.kind === 'end' ? `<tr><th></th>${periods.map(([p]) => `<th colspan="${tasksOf(p).length}" class="pg">${esc(p.name)} ${esc(p.subject)}${isPick(p) ? ` · ${needOf(p)}개` : ''}</th>`).join('')}<th></th></tr>` : ''}
       <tr><th class="nm">학생</th>${periods.map(([p]) => tasksOf(p).map((t) => `<th>${esc(t)}</th>`).join('')).join('')}<th>완료</th></tr></thead><tbody>
-      ${names.map((n, k) => `<tr class="${doneAll(k) ? 'ok' : ''}"><td class="nm"><span class="tag${phoneDot(k)}"><small>${k + 1}</small>${esc(n)}</span></td>
+      ${names.map((n, k) => (!n ? '' : `<tr class="${doneAll(k) ? 'ok' : ''}"><td class="nm"><span class="tag${phoneDot(k)}"><small>${k + 1}</small>${esc(n)}</span></td>
         ${periods.map(([p, pi]) => tasksOf(p).map((_, ti) => `<td><button class="ck ${isChecked(p, markOf(k), pi, ti) ? 'on' : ''}" data-k="${k}" data-pi="${pi}" data-ti="${ti}" aria-label="${esc(n)} ${ti + 1}번 과제">${ic('flag')}</button></td>`).join('')).join('')}
-        <td class="fin">${doneAll(k) ? '완료' : ''}</td></tr>`).join('')}</tbody></table></div>`;
+        <td class="fin">${doneAll(k) ? '완료' : ''}</td></tr>`)).join('')}</tbody></table></div>`;
   } else {
     const V = lineView(), last = V.last, P = names.map((_, k) => V.pos(k));
     body = `<div class="track ${V.day ? 'day' : ''}">
       ${V.stations.map((s, i) => `<div class="st ${i === last ? 'fin' : ''} ${V.day && s.p && (i === 0 || V.stations[i - 1].pi !== s.pi) ? 'pstart' : ''}">
         <div class="mark">${i === last ? ic('flag') : i + 1}</div><div class="lbl">${s.p ? `<small class="pt">${esc(s.p)}</small>` : ''}${esc(s.label)}</div>
-        <div class="tags">${names.map((n, k) => (P[k] === i ? `<span class="tag${phoneDot(k)}" data-k="${k}"><small>${k + 1}</small>${esc(n)}</span>` : '')).join('')}</div>
+        <div class="tags">${names.map((n, k) => (n && P[k] === i ? `<span class="tag${phoneDot(k)}" data-k="${k}"><small>${k + 1}</small>${esc(n)}</span>` : '')).join('')}</div>
       </div>`).join('')}</div>`;
     el._V = V;
   }
   el.innerHTML = `
     <div class="tasks-head" data-a="th">
-      <h2>${esc(title)}</h2><span class="cnt num">${done}/${names.length}</span>
+      <h2>${esc(title)}</h2><span class="cnt num">${done}/${total}</span>
       <span class="sp"></span>
       <button class="reset" data-a="full">${ic('full')}${S.tasksFull ? '원래 크기' : '크게 보기'}</button>
       <button class="reset" data-a="reset">${ic('reset')}${ph.kind === 'end' ? '오늘 과제 현황 초기화' : '이 과제 현황 초기화'}</button>
       ${S.tasksFull ? '' : '<svg class="i chev"><use href="#i-chev"/></svg>'}
     </div>
-    <div class="prog" style="${S.cfg.tasksClosed && !S.tasksFull ? '' : 'display:none'}"><i style="width:${names.length ? done / names.length * 100 : 0}%"></i></div>
+    <div class="prog" style="${S.cfg.tasksClosed && !S.tasksFull ? '' : 'display:none'}"><i style="width:${total ? done / total * 100 : 0}%"></i></div>
     <div class="tasks-body"><div>${body}</div></div>`;
   el.querySelector('[data-a=th]').onclick = (e) => {
     if (e.target.closest('button') || S.tasksFull) return;
@@ -293,7 +329,7 @@ function drawTasks(animate) {
   el.querySelector('[data-a=reset]').onclick = async (e) => {
     e.stopPropagation();
     if (!(await confirmBox('과제 현황을 초기화할까요?', '모든 학생의 체크가 처음으로 돌아가요.', '초기화'))) return;
-    names.forEach((_, k) => { let m = markOf(k); periods.forEach(([, pi]) => { m = withReset(m, pi); }); setMark(k, m); });
+    names.forEach((n, k) => { if (!n) return; let m = markOf(k); periods.forEach(([, pi]) => { m = withReset(m, pi); }); setMark(k, m); });
     drawTasks(true);
   };
   if (useGrid) {
@@ -314,7 +350,7 @@ function drawTasks(animate) {
     });
   }
   if (before) flip(before);
-  const all = names.length && done === names.length;
+  const all = total && done === total;
   if (animate && all && !lastDoneAll) { confetti(); fx('celebrate'); }
   lastDoneAll = !!all;
 }
@@ -351,7 +387,10 @@ function tick() {
       else if (S.phase.kind === 'break' && prev.kind === 'class') FX.breakStart();
     }
     drawStage(); drawTasks(); drawTT();
-  } else if (S.phase.kind === 'break') tickBreak();
+  } else {
+    if (S.phase.kind === 'break') tickBreak();
+    if (S.wbOn) { const l = document.querySelector('[data-r=wbl]'); if (l) l.textContent = mmss(S.phase.remain); }
+  }
   if (S.phase.kind !== prev.kind || (S.phase.cur ?? -1) !== (prev.cur ?? -1)) drawDbg();
   if (!$('#dbg').hidden) { const n = $('#dbg [data-r=now]'); if (n) n.textContent = nowLabel(); }
 }
@@ -414,6 +453,69 @@ function drawDbg() {
   el.querySelector('[data-a=real]').onclick = () => jump(() => { S.offset = 0; });
 }
 
+/* ---------- 같은 계정 여러 화면 연동 (TV ↔ 휴대폰) ---------- */
+const DEV = Math.random().toString(36).slice(2, 10); // 이 화면의 이름표
+const LIVE = { lastCfg: '', started: Date.now(), put: new Map(), del: new Set(), wbList: [] };
+/** 키 순서와 상관없이 같은 내용이면 같은 글자 */
+function stable(o) {
+  if (Array.isArray(o)) return '[' + o.map(stable).join(',') + ']';
+  if (o && typeof o === 'object') return '{' + Object.keys(o).sort().filter((k) => o[k] !== undefined).map((k) => JSON.stringify(k) + ':' + stable(o[k])).join(',') + '}';
+  return JSON.stringify(o);
+}
+function ringNow(i) {
+  const b = $('#bellBtn'); b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring');
+  ringBell(i ?? S.cfg.sound.bell, S.cfg.sound.custom); // 소리 끔 상태에서도 울림
+}
+/** 큰 화면(휴대폰이 아닌 화면)의 판서 비율을 알려 줌: 휴대폰에 'TV 화면 끝' 선 */
+let lastAr = 0;
+function publishRatio() {
+  if (guest() || isPhone()) return;
+  const ar = myRatio(); if (!ar || Math.abs(ar - lastAr) < 0.02) return;
+  lastAr = ar; store.setLive(S.user.uid, { scr: { ar: Math.round(ar * 1000) / 1000, at: Date.now() } }).catch(() => {});
+}
+addEventListener('resize', () => { clearTimeout(publishRatio.t); publishRatio.t = setTimeout(publishRatio, 800); });
+
+function startLive() {
+  const uid = S.user.uid;
+  // 1) 설정 (시간표·명단·신호등·소리…): 다른 화면에서 바꾸면 여기도 바뀜
+  store.watchConfig(uid, (c) => {
+    if (!c || store.isPending('config')) return;
+    const st = stable(c); if (st === LIVE.lastCfg || st === stable(S.cfg)) { LIVE.lastCfg = st; return; }
+    LIVE.lastCfg = st;
+    S.cfg = normalizeConfig(c);
+    if (S.day && !S.day.custom) S.day.table = clone(S.cfg.weekTables[now().getDay()] || []);
+    applyAll(); drawTasks();
+  }, () => {});
+  // 2) 집중 종 · 판서 켜기 · 타이머 · 큰 화면 비율
+  let seen = {};
+  store.watchLive(uid, (d) => {
+    if (!d) return;
+    const fresh = (k) => d[k] && d[k].at !== seen[k] && d[k].dev !== DEV && (seen[k] = d[k].at, true);
+    if (d.bell && fresh('bell') && Date.now() - d.bell.at < 15000 && d.bell.at > LIVE.started - 1000) ringNow(d.bell.i);
+    if (d.wb && fresh('wb')) { setWbOn(!!d.wb.on, false); if (d.wb.on && d.wb.full && !isPhone()) requestAnimationFrame(() => setWbFull(true)); }
+    if (d.timer && d.timer.dev !== DEV && d.timer.v !== seen.timer) { seen.timer = d.timer.v; if (d.timer.v > LIVE.started - 1000 || d.timer.running) applyRemoteTimer(d.timer); }
+    if (d.scr) setTvRatio(d.scr.ar);
+  }, () => {});
+  // 3) 판서 선·글자
+  setWbSync({
+    put: (item) => { const v = Date.now(); item.v = v; item.dev = DEV; LIVE.put.set(item.id, v); store.putWb(uid, item).catch(() => LIVE.put.delete(item.id)); },
+    del: (id) => { LIVE.del.add(id); LIVE.put.delete(id); store.delWb(uid, id).catch(() => {}); },
+    clear: () => { LIVE.wbList.forEach((x) => LIVE.del.add(x.id)); LIVE.put.clear(); store.clearWb(uid).catch(() => {}); },
+  });
+  store.watchWb(uid, (rows) => {
+    const ids = new Set(rows.map((r) => r.id));
+    [...LIVE.del].forEach((id) => { if (!ids.has(id)) LIVE.del.delete(id); });
+    rows.forEach((r) => { const v = LIVE.put.get(r.id); if (v && (r.v || 0) >= v) LIVE.put.delete(r.id); });
+    LIVE.wbList = rows.filter((r) => !LIVE.del.has(r.id));
+    applyRemote(LIVE.wbList, new Set(LIVE.put.keys()));
+  }, () => {});
+  // 어제까지의 판서는 지움 (판서는 그날만 연동용으로 잠깐 저장)
+  const today0 = new Date(now()); today0.setHours(0, 0, 0, 0);
+  store.clearWb(uid, today0.getTime()).catch(() => {});
+  // 학급 코드에 명단 이름(지문) 맞추기
+  syncNames();
+}
+
 /* ---------- 시작 ---------- */
 function readCache() { try { return JSON.parse(localStorage.getItem('cb:cache') || 'null'); } catch (e) { return null; } }
 
@@ -437,6 +539,7 @@ export async function startBoard(user) {
   setWinStore((k) => S.cfg.wins[k], (k, v) => { S.cfg.wins[k] = v; if (!guest()) saveCfg(); });
   initWidgets({
     cfg: () => S.cfg, save: () => { if (!guest()) saveCfg(); }, soundOn, roster, setLight,
+    timerSync: (t) => { if (!guest()) store.setLive(S.user.uid, { timer: { ...t, dev: DEV } }).catch(() => {}); },
     bgImage: () => S.bgImage,
     setBgImage: (d) => { S.bgImage = d; if (!guest()) store.saveBgImage(S.user.uid, d); },
   });
@@ -445,7 +548,7 @@ export async function startBoard(user) {
     isAdmin: () => !!S.user && store.isAdminEmail(S.user.email),
     loadAllow: store.loadAllow, saveAllow: store.saveAllow, listRequests: store.listRequests,
     approveRequest: store.approveRequest, denyRequest: store.denyRequest,
-    saveCfg, saveDay, applyAll,
+    saveCfg, saveDay, applyAll, rosterChanged: syncNames,
     resetAll: async () => {
       if (!guest()) { try { await store.deleteConfig(S.user.uid); } catch (e) { /* 무시 */ } }
       const keep = S.cfg.classCode;
@@ -469,9 +572,12 @@ export async function startBoard(user) {
 
   $$('#wbar .w[data-w]').forEach((b) => { b.onclick = () => actions[b.dataset.w](); });
   $('#foldBar').onclick = () => { S.cfg.barMini = !S.cfg.barMini; saveCfg(); drawBar(); };
+  // 휴대폰: 위젯 바는 자주 쓰는 4개 + '더보기'
+  $('#moreBar').onclick = () => { const o = $('#wbar').classList.toggle('open'); $('#moreBar span').textContent = o ? '접기' : '더보기'; };
+  $$('#wbar .w[data-w]').forEach((b) => b.addEventListener('click', () => { if (isPhone() && b.dataset.w !== 'sound' && b.dataset.w !== 'wake') { $('#wbar').classList.remove('open'); $('#moreBar span').textContent = '더보기'; } }));
   $('#bellBtn').onclick = () => {
-    const b = $('#bellBtn'); b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring');
-    ringBell(S.cfg.sound.bell, S.cfg.sound.custom); // 소리 끔 상태에서도 울림
+    ringNow();
+    if (!guest()) store.setLive(S.user.uid, { bell: { at: Date.now(), i: S.cfg.sound.bell, dev: DEV } }).catch(() => {}); // 다른 화면(TV)도 울림
   };
   $('#bellSel').onchange = () => { S.cfg.sound.bell = +$('#bellSel').value; saveCfg(); };
   $('#timeMoveBtn').onclick = () => { const el = $('#dbg'); el.hidden = !el.hidden; drawDbg(); };
@@ -483,5 +589,6 @@ export async function startBoard(user) {
   await loadToday();
   applyAll();
   setInterval(tick, 1000);
+  if (user) startLive();
   if (!user) toast('게스트 모드예요. 모든 기능을 써 볼 수 있지만 저장은 되지 않아요', 4000);
 }

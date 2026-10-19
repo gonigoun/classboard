@@ -25,12 +25,11 @@ function joinForm(code, err) {
   unsubs.forEach((u) => u()); unsubs = [];
   box().innerHTML = `<div class="stu-card join">
       <h2>학급에 들어가기</h2>
-      <p class="hint">${esc(U.email)} 계정으로 들어가요. 선생님이 칠판에 띄운 학급 코드를 넣어 주세요.</p>
+      <p class="hint">${esc(U.email)} 계정으로 들어가요. 선생님이 띄운 학급 코드와 <b>선생님 명단에 있는 내 이름</b>을 넣어 주세요. 번호는 저절로 정해져요.</p>
       ${err ? `<p class="help">${esc(err)}</p>` : ''}
       <form data-r="f">
         <label>학급 코드<input data-r="code" maxlength="6" required value="${esc(code)}" placeholder="예: K7P2QM" autocapitalize="characters" class="codein"></label>
-        <div class="two"><label>내 번호<input data-r="num" type="number" min="1" max="40" required inputmode="numeric"></label>
-        <label>내 이름<input data-r="name" maxlength="12" required value="${esc((U.name || '').slice(0, 12))}"></label></div>
+        <label>내 이름<input data-r="name" maxlength="20" required value="${esc((U.name || '').slice(0, 20))}" autocomplete="name"></label>
         <button class="bigbtn">들어가기</button>
       </form>
       <div class="row end"><button class="linkbtn" data-a="out">다른 계정으로 로그인</button></div></div>`;
@@ -39,7 +38,7 @@ function joinForm(code, err) {
     const v = (r) => box().querySelector(`[data-r=${r}]`).value.trim();
     const btn = box().querySelector('.bigbtn'); btn.disabled = true; btn.textContent = '들어가는 중…';
     try {
-      M = await store.joinClass(U, v('code'), +v('num'), v('name'));
+      M = await store.joinClass(U, v('code'), v('name'));
       saveLocal(M); toast(`${M.num}번 ${M.name}(으)로 들어왔어요`); enter();
     } catch (er) { joinForm(v('code'), store.errText(er)); }
   };
@@ -78,10 +77,12 @@ function watch() {
   unsubs.push(store.watchMyMark(M.tuid, dateKey, M.num, (m) => {
     if (Date.now() - recentAt > 2500) { mark = { p: (m && m.p) || {}, k: (m && m.k) || {} }; drawTasks(); }
   }, () => {}));
+  let firstMsgs = true;
   unsubs.push(store.watchMsgs(M.tuid, U.uid, (rows) => {
-    const had = msgs.length; msgs = rows.sort((a, b) => a.at - b.at); drawThread();
-    const last = msgs[msgs.length - 1];
-    if (had && msgs.length > had && last && last.from === 't') toast('선생님이 답장했어요');
+    const had = new Set(msgs.map((m) => m.id)); msgs = rows.sort((a, b) => a.at - b.at); drawThread();
+    const fresh = msgs.filter((m) => m.from === 't' && !had.has(m.id));
+    if (!firstMsgs && fresh.length) { toast(`선생님 메시지: ${fresh[fresh.length - 1].text.slice(0, 40)}`, 4000); try { navigator.vibrate && navigator.vibrate(200); } catch (e) { /* 무시 */ } }
+    firstMsgs = false;
   }, () => {}));
 }
 

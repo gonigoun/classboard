@@ -66,13 +66,13 @@ export function openWin(key, title, icon, body, init, onClose) {
   const h = w.querySelector('.win-h');
   h.onpointerdown = (e) => {
     if (e.target.closest('button') || mobile) return;
-    const sx = e.clientX - w.offsetLeft, sy = e.clientY - w.offsetTop; h.setPointerCapture(e.pointerId);
+    const sx = e.clientX - w.offsetLeft, sy = e.clientY - w.offsetTop; try { h.setPointerCapture(e.pointerId); } catch (er) { /* 무시 */ }
     h.onpointermove = (ev) => { w.style.left = Math.max(0, Math.min(innerWidth - 80, ev.clientX - sx)) + 'px'; w.style.top = Math.max(0, Math.min(innerHeight - 40, ev.clientY - sy)) + 'px'; };
     h.onpointerup = () => { h.onpointermove = null; remember(); };
   };
   const rs = w.querySelector('.win-rs');
   rs.onpointerdown = (e) => {
-    e.preventDefault(); const sx = e.clientX, sy = e.clientY, W0 = w.offsetWidth, H0 = w.offsetHeight; rs.setPointerCapture(e.pointerId);
+    e.preventDefault(); const sx = e.clientX, sy = e.clientY, W0 = w.offsetWidth, H0 = w.offsetHeight; try { rs.setPointerCapture(e.pointerId); } catch (er) { /* 무시 */ }
     rs.onpointermove = (ev) => { w.style.width = Math.max(240, W0 + ev.clientX - sx) + 'px'; w.style.height = Math.max(150, H0 + ev.clientY - sy) + 'px'; };
     rs.onpointerup = () => { rs.onpointermove = null; remember(); };
   };
