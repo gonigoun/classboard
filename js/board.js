@@ -199,7 +199,7 @@ function drawStage() {
   const ph = S.phase, st = $('#stage'), T = table();
   document.body.classList.toggle('is-break', ph.kind === 'break');
   $('#app').className = 'mode-' + (ph.kind === 'morning' ? 'class' : ph.kind) + (S.wbOn && wbOK() ? ' wb-on' : '');
-  if (!wbOK() && S.wbOn) { S.wbOn = false; if (wbIsFull()) setWbFull(false); }
+  if (!wbOK() && S.wbOn) { S.wbOn = false; if (wbIsFull()) setWbFull(false); if (S.autoFold) { S.autoFold = false; S.cfg.tasksClosed = false; } }
   if (S.wbOn) { // 판서 중: 판서 화면 (수업 중이면 위에 교시 띠)
     st.innerHTML = (ph.kind === 'class' ? band(T[ph.cur]) : '') + wbBtn();
     st.appendChild(getWB(wbHead())); bindWbBtn(st);
@@ -250,7 +250,9 @@ function bindWbBtn(st) {
 function setWbOn(on, mine) {
   if (on === S.wbOn) return;
   S.wbOn = on;
-  if (S.wbOn && !S.cfg.tasksClosed && !isPhone()) { S.cfg.tasksClosed = true; drawTasks(); }
+  // 판서를 열면 과제 현황을 잠깐 접고, 판서를 닫으면 다시 펼침 (선생님이 직접 접은 건 그대로)
+  if (S.wbOn && !S.cfg.tasksClosed && !isPhone()) { S.cfg.tasksClosed = true; S.autoFold = true; drawTasks(); }
+  if (!S.wbOn && S.autoFold) { S.autoFold = false; if (S.cfg.tasksClosed) { S.cfg.tasksClosed = false; drawTasks(); } }
   if (!S.wbOn && wbIsFull()) setWbFull(false);
   drawStage();
   // 휴대폰에서 판서를 켜면 TV는 판서를 크게 띄움 (휴대폰 판서가 TV에 넓게 보이도록)
@@ -272,6 +274,14 @@ function taskPi() {
   if (ph.kind === 'class') return ph.cur;
   if ((ph.kind === 'morning' || ph.kind === 'soon') && isSpecial(table()[ph.next])) return ph.next;
   return null;
+}
+/** 지금 보여 줄 과제가 있는지 (켜고 끄기와 상관없이) */
+function hasTasksNow() {
+  const ph = S.phase;
+  if (!S.day) return false;
+  if (taskPi() != null) return tasksOf(table()[taskPi()]).length > 0;
+  if (ph.kind === 'end') return table().some((p) => tasksOf(p).length);
+  return false;
 }
 function tasksVisible() {
   const ph = S.phase;
@@ -314,7 +324,18 @@ let lastDoneAll = false;
 function drawTasks(animate) {
   const el = $('#tasks');
   $$('.w[data-w=tasks]').forEach((b) => b.classList.toggle('on', S.cfg.showTasks));
-  if (!tasksVisible()) { el.style.display = 'none'; if (S.tasksFull) setTasksFull(false); return; }
+  if (!tasksVisible()) {
+    if (S.tasksFull) setTasksFull(false);
+    // 과제 현황을 꺼 두었는데 지금 과제가 있으면, 얇은 줄로 알려 주고 바로 켤 수 있게
+    if (!S.cfg.showTasks && hasTasksNow()) {
+      el.style.display = ''; el.className = 'tasks card off';
+      el.innerHTML = `<div class="tasks-off">${ic('tasks')}<span>과제 현황이 꺼져 있어요</span><button class="btn" data-a="on">켜기</button></div>`;
+      el.querySelector('[data-a=on]').onclick = () => actions.tasks();
+      return;
+    }
+    el.style.display = 'none'; return;
+  }
+  el.classList.remove('off');
   el.style.display = '';
   const ph = S.phase, T = table(), names = roster();
   const tpi = taskPi(), periods = ph.kind === 'end' ? T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length) : [[T[tpi], tpi]];
@@ -452,7 +473,7 @@ function drawBar() {
 }
 const actions = {
   bg: openBg, pick: openPick, noise: openNoise, light: openLight, timer: openTimer,
-  tasks: () => { S.cfg.showTasks = !S.cfg.showTasks; saveCfg(); drawTasks(); drawBar(); if (S.cfg.showTasks && !tasksVisible()) toast('과제 현황은 수업 중과 모든 수업이 끝난 뒤에 보여요'); },
+  tasks: () => { S.cfg.showTasks = !S.cfg.showTasks; if (S.cfg.showTasks) S.cfg.tasksClosed = false; saveCfg(); drawTasks(); drawBar(); if (S.cfg.showTasks && !tasksVisible()) toast('과제 현황은 수업 중과 모든 수업이 끝난 뒤에 보여요'); },
   students: openStudents, msg: openMessages,
   set: () => openSettings('table'),
   sound: () => { S.cfg.sound.on = !S.cfg.sound.on; saveCfg(); drawBar(); },
