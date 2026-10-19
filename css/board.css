@@ -824,3 +824,14 @@ body.wb-full .wb-bar .wb-wx{display:flex;border-right:0;border-left:2px solid va
   .wb-left small{white-space:nowrap;max-width:28vw;overflow:hidden;text-overflow:ellipsis}
 }
 @media (max-width:420px){.wb-left small{display:none}}
+
+/* 판서 글자 상자: 테두리 둘레 어디를 잡아도 옮기기 */
+.obj .edge{display:none;position:absolute;z-index:1;cursor:move;touch-action:none;--e:16px}
+.obj.sel .edge,.wb-canvas[data-tool=text] .obj.txt .edge,.wb-canvas[data-tool=select] .obj.txt .edge{display:block}
+.obj .edge.t{left:calc(-1 * var(--e));right:calc(-1 * var(--e));top:calc(-1 * var(--e));height:var(--e)}
+.obj .edge.b{left:calc(-1 * var(--e));right:calc(-1 * var(--e));bottom:calc(-1 * var(--e));height:var(--e)}
+.obj .edge.l{top:0;bottom:0;left:calc(-1 * var(--e));width:var(--e)}
+.obj .edge.r{top:0;bottom:0;right:calc(-1 * var(--e));width:var(--e)}
+.obj.txt:has(.edge:hover){outline:2px dashed var(--blue);outline-offset:4px}
+.obj .edge:hover,.obj .edge:active{background:rgba(43,108,230,.10)}
+@media (pointer:coarse){.obj .edge{--e:24px}}
