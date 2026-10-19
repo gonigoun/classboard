@@ -944,3 +944,21 @@ body.wb-full .wb-bar .wb-wx{display:flex;border-right:0;border-left:2px solid va
 .tasks-off{display:flex;align-items:center;gap:10px;padding:8px 16px;font-size:15px;color:var(--muted)}
 .tasks-off svg{font-size:20px;color:var(--blue)}
 .tasks-off .btn{margin-left:auto}
+
+/* 휴대폰 글자 크기 자동 키움 끄기 (판서 글자가 TV와 같은 크기로) */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+
+/* 판서 크게 보기: 집중 종 (오른쪽 아래, 언제나 보임) */
+.wb-bell{display:none;position:absolute;right:18px;bottom:18px;z-index:5;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:76px;height:68px;border-radius:18px;
+  background:linear-gradient(160deg,#9A7BFF,var(--purple));color:#fff;box-shadow:0 6px 0 #5B3FD6,0 10px 22px rgba(91,63,214,.35);touch-action:manipulation}
+.wb-bell svg{font-size:30px;transform-origin:50% 10%}
+.wb-bell span{font-family:var(--title);font-size:16px;line-height:1}
+.wb-bell:active{transform:translateY(4px);box-shadow:0 2px 0 #5B3FD6}
+.wb-bell.ring svg{animation:ring .9s ease}
+.wb-wrap.full .wb-bell{display:flex}
+body.theme-sunset .wb-bell{background:linear-gradient(160deg,#FF8F70,#E36A85);box-shadow:0 6px 0 #B8485F,0 10px 22px rgba(227,106,133,.35)}
+body.theme-sunset .wb-bell:active{box-shadow:0 2px 0 #B8485F}
+@media (max-width:760px),(max-height:500px){.wb-bell{width:58px;height:52px;right:12px;bottom:12px;border-radius:15px}.wb-bell svg{font-size:22px}.wb-bell span{font-size:12px}}
+/* 글자 상자 여백을 글자 크기에 맞춰서 (휴대폰·TV에서 같은 자리) */
+.obj.txt{padding:0}
+.obj.txt [contenteditable]{padding:.02em .06em}
