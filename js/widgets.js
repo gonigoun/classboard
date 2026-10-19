@@ -8,7 +8,7 @@ const fx = (name, ...a) => { if (ctx.soundOn()) FX[name](...a); };
 
 /* ---------- 배경 ---------- */
 const PATTERNS = [
-  { id: 'grid', name: '모눈' }, { id: 'notebook', name: '공책' }, { id: 'chalk', name: '칠판' },
+  { id: 'paper', name: '구김 종이' }, { id: 'grid', name: '모눈' }, { id: 'notebook', name: '공책' }, { id: 'chalk', name: '칠판' },
   { id: 'dots', name: '물방울' }, { id: 'solid', name: '단색' },
 ];
 const svgUrl = (s) => `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
@@ -42,6 +42,9 @@ function autoBg() {
   return 'linear-gradient(160deg,#FFE3C7,#FFF6EC)';
 }
 
+/** 화면 색 테마: 스위트(기본값) / 기본(파랑) */
+export function applyTheme() { document.body.classList.toggle('theme-sweet', ctx.cfg().theme !== 'classic'); }
+
 export function applyBg() {
   const b = ctx.cfg().bg, el = $('#bg');
   el.className = ''; el.style.cssText = '';
@@ -49,6 +52,7 @@ export function applyBg() {
   if (b.kind === 'pattern') {
     el.className = 'pat' + (b.value !== 'grid' ? ' bg-' + b.value : '');
     if (b.value === 'solid' || b.value === 'grid') el.style.backgroundColor = b.color || '#DCE8FB';
+    if (b.value === 'paper' && b.color && b.color !== '#034102') el.style.backgroundColor = b.color;
   } else if (b.kind === 'auto') {
     el.style.background = autoBg();
   } else if (b.kind === 'illust' && ILLUST[b.value]) {
@@ -92,18 +96,28 @@ function drawBg(w) {
   else if (bgTab === 'nature' || bgTab === 'class') body = `<p class="hint">저작권 걱정 없는 사진 모음은 다음 단계에서 추가될 예정이에요. 지금은 '일러스트'나 '내 사진·주소'를 써 주세요.</p>`;
   else if (bgTab === 'illust') body = `<div class="grid">${Object.entries(ILLUST).map(([k, v]) => `<button data-il="${k}" class="${b.kind === 'illust' && b.value === k ? 'sel' : ''}" style="background-image:${v.css().replace(/"/g, '&quot;')};color:#fff;text-shadow:0 1px 3px #000">${v.name}</button>`).join('')}</div><p class="hint">${ILLUST_CREDIT}</p>`;
   else if (bgTab === 'pattern') body = `<div class="grid">${PATTERNS.map((p) => `<button data-pt="${p.id}" class="${b.kind === 'pattern' && b.value === p.id ? 'sel' : ''}" style="${patPreview(p.id, b.color)}">${p.name}</button>`).join('')}</div>
-      <label>색 고르기 (모눈·단색) <input type="color" data-r="color" value="${b.color || '#DCE8FB'}"></label>`;
+      <label>색 고르기 (구김 종이·모눈·단색) <input type="color" data-r="color" value="${b.color || '#DCE8FB'}"></label>`;
   else body = `<label>내 컴퓨터 사진 <input type="file" accept="image/*" data-r="file"></label>
       <label>이미지 주소 <input type="url" data-r="url" placeholder="https://…" value="${b.kind === 'url' ? esc(b.value) : ''}"><button class="btn ghost" data-r="useurl">넣기</button></label>
       <p class="hint">사진은 로그인한 선생님 기록에만 저장돼요. 다른 사람이 만든 사진은 저작권을 확인하고 써 주세요.</p>`;
-  box.innerHTML = `<div class="tabs">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${bgTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}
+  const th = ctx.cfg().theme === 'classic' ? 'classic' : 'sweet';
+  box.innerHTML = `<div class="themes"><span>화면 색</span>${[['sweet', '스위트 (초록·라임)'], ['classic', '기본 (파랑)']].map(([k, n]) => `<button data-th="${k}" class="${th === k ? 'sel' : ''} th-${k}"><i></i>${n}</button>`).join('')}</div>
+    <div class="tabs">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${bgTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}
     <label>배경 어둡게 <input type="range" min="0" max="70" value="${b.dim || 0}" data-r="dim"> <span class="num">${b.dim || 0}%</span></label>`;
   const set = (patch) => { Object.assign(ctx.cfg().bg, patch); ctx.save(); applyBg(); drawBg(w); };
+  box.querySelectorAll('[data-th]').forEach((t) => {
+    t.onclick = () => {
+      const c = ctx.cfg(); c.theme = t.dataset.th;
+      // 테마에 어울리는 바탕으로 같이 바꿈 (사진·일러스트를 쓰고 있으면 그대로)
+      if (c.bg.kind === 'pattern' || c.bg.kind === 'auto') Object.assign(c.bg, c.theme === 'sweet' ? { kind: 'pattern', value: 'paper', color: '#034102' } : { kind: 'pattern', value: 'grid', color: '#DCE8FB' });
+      ctx.save(); applyTheme(); applyBg(); drawBg(w);
+    };
+  });
   box.querySelectorAll('[data-tab]').forEach((t) => { t.onclick = () => { bgTab = t.dataset.tab; drawBg(w); }; });
   box.querySelectorAll('[data-pt]').forEach((t) => { t.onclick = () => set({ kind: 'pattern', value: t.dataset.pt }); });
   box.querySelectorAll('[data-il]').forEach((t) => { t.onclick = () => set({ kind: 'illust', value: t.dataset.il }); });
   const a = box.querySelector('[data-k=auto]'); if (a) a.onclick = () => set({ kind: 'auto' });
-  const col = box.querySelector('[data-r=color]'); if (col) col.onchange = () => set({ color: col.value, kind: 'pattern', value: ['grid', 'solid'].includes(b.value) && b.kind === 'pattern' ? b.value : 'solid' });
+  const col = box.querySelector('[data-r=color]'); if (col) col.onchange = () => set({ color: col.value, kind: 'pattern', value: ['grid', 'solid', 'paper'].includes(b.value) && b.kind === 'pattern' ? b.value : 'solid' });
   const dim = box.querySelector('[data-r=dim]');
   dim.oninput = () => { ctx.cfg().bg.dim = +dim.value; $('#bgDim').style.opacity = dim.value / 100; dim.nextElementSibling.textContent = dim.value + '%'; };
   dim.onchange = () => ctx.save();
@@ -127,6 +141,7 @@ function patPreview(id, color) {
     chalk: 'background:#2F4F43;color:#fff',
     dots: 'background:#EFE9FF radial-gradient(rgba(123,92,250,.35) 3px,transparent 4px) 0 0/14px 14px',
     solid: `background:${c}`,
+    paper: `background:${color && color !== '#DCE8FB' ? color : '#034102'};color:#B6FE00;box-shadow:inset 0 0 18px rgba(0,0,0,.45)`,
   }[id];
 }
 
@@ -267,7 +282,7 @@ export function openTimer() {
         <label><input type="number" min="0" max="59" data-u="s" value="${c.timer.s}" inputmode="numeric"><span>초</span></label>
       </div>
       <div class="row tmr-pre" data-r="pre">${[[30, '30초'], [60, '1분'], [180, '3분'], [300, '5분'], [600, '10분']].map(([v, n]) => `<button class="btn ghost" data-p="${v}">${n}</button>`).join('')}</div>
-      <div class="row tmr-adj" data-r="adj" hidden>${[[-60, '−1분'], [-30, '−30초'], [30, '+30초'], [60, '+1분'], [300, '+5분']].map(([v, n]) => `<button class="btn ghost ${v < 0 ? 'minus' : ''}" data-adj="${v}">${n}</button>`).join('')}</div>
+      <div class="row tmr-adj" data-r="adj">${[[-300, '−5분'], [-60, '−1분'], [-30, '−30초'], [30, '+30초'], [60, '+1분'], [300, '+5분']].map(([v, n]) => `<button class="btn ghost ${v < 0 ? 'minus' : ''}" data-adj="${v}">${n}</button>`).join('')}</div>
       <div class="row tmr-go"><button class="btn" data-a="go">시작</button><button class="btn ghost" data-a="reset">다시</button><span class="sp"></span>
         <div class="seg sm">${[['hour', '모래시계'], ['pie', '부채꼴'], ['num', '숫자만']].map(([k, n]) => `<button data-t="${k}" class="${c.timer.type === k ? 'sel' : ''}">${n}</button>`).join('')}</div></div>
       <label class="chk tmr-bell">끝날 때 소리 <select data-r="bell">${BELLS.map((b, i) => `<option value="${i}" ${i === c.timer.bell ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select><button class="btn ghost" data-a="test">들어 보기</button></label>
@@ -283,9 +298,9 @@ function tDraw() {
   q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
   a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
   q('set').classList.toggle('lock', T.running);
-  // 진행 중(멈춤·끝 포함)에는 '시간 더하기·빼기' 버튼, 처음에는 시간 고르기 버튼
+  // 시간 더하기·빼기 버튼은 언제나 보임. 시작 전에는 시간 고르기 버튼도 함께
   const busy = T.running || done || (T.total && T.left < T.total);
-  q('pre').hidden = !!busy; q('adj').hidden = !busy;
+  q('pre').hidden = !!busy;
   w.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('sel', x.dataset.t === type));
 }
 function tLoop() {
@@ -334,6 +349,14 @@ function bindTimer(w) {
     b.onclick = () => {
       const v = +b.dataset.adj;
       if (T.done) { if (v > 0) { tStart(v); share(); } return; } // 끝난 뒤 더하면 그 시간만큼 다시 시작
+      if (!T.running && T.left >= T.total) { // 시작 전: 맞춰 둔 시간을 늘리고 줄임
+        const nv = Math.max(0, Math.min(23 * 3600 + 59 * 60 + 59, setSec() + v));
+        c.timer.h = Math.floor(nv / 3600); c.timer.m = Math.floor(nv / 60) % 60; c.timer.s = nv % 60;
+        w.querySelectorAll('[data-u]').forEach((i) => { i.value = c.timer[i.dataset.u]; });
+        ctx.save(); tReset(); share();
+        b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
+        return;
+      }
       const left = T.running ? Math.max(0, (T.endAt - tnow()) / 1000) : T.left;
       if (v < 0 && left <= 1) return;
       const nl = Math.max(1, left + v);

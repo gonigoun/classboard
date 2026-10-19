@@ -824,3 +824,12 @@ body.wb-full .wb-bar .wb-wx{display:flex;border-right:0;border-left:2px solid va
   .wb-left small{white-space:nowrap;max-width:28vw;overflow:hidden;text-overflow:ellipsis}
 }
 @media (max-width:420px){.wb-left small{display:none}}
+
+/* 배경 창: 화면 색 고르기 */
+.bgw .themes{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding-bottom:10px;border-bottom:1px dashed var(--line)}
+.bgw .themes span{font-size:13px;font-weight:700;color:var(--muted);margin-right:2px}
+.bgw .themes button{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:2px solid var(--line);background:#fff;font-size:13px;font-weight:700}
+.bgw .themes button i{width:16px;height:16px;border-radius:50%;flex:none}
+.bgw .themes .th-sweet i{background:conic-gradient(#034102 0 50%,#B6FE00 0 75%,#FCD805 0)}
+.bgw .themes .th-classic i{background:conic-gradient(#2B6CE6 0 50%,#DCE8FB 0)}
+.bgw .themes button.sel{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue)}

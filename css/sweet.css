@@ -1,0 +1,213 @@
+/* =====================================================================
+   '스위트' 테마: 숲 초록 · 형광 라임 · 해바라기 노랑 · 주황 · 크라프트 종이
+   구겨진 종이 바탕, 마스킹테이프 조각, 포스트잇, 점선 — 손으로 만든 느낌
+   body.theme-sweet 일 때만 적용 (배경 창에서 '기본(파랑)'으로 되돌릴 수 있어요)
+   ===================================================================== */
+body.theme-sweet{
+  --forest:#034102; --forest-2:#013900; --forest-3:#0B5A0A;
+  --lime:#B6FE00; --lime-soft:#EEFFC2;
+  --sunny:#FCD805; --sunny-soft:#FFF4B0;
+  --orange:#FA8005; --orange-soft:#FFE3C4;
+  --kraft:#C99E6E; --kraft-ink:#754402;
+  --paper:#F6F3EA; --paper-2:#EDE7D6;
+  --tape:rgba(214,200,152,.88);
+
+  --blue:var(--forest); --blue-soft:var(--lime-soft); --blue-deep:var(--forest-2);
+  --coral:var(--orange); --sun:var(--sunny); --cream:var(--paper);
+  --yellow:var(--sunny); --yellow-soft:var(--sunny-soft);
+  --green:#2E8B12; --green-soft:#E6F9C6;
+  --red:#E2493B; --purple:#C2410C; --purple-soft:#FFE7D1;
+  --ink:#0F2A0E; --muted:#5C6B52; --line:#E2DBC7;
+  --card:var(--paper);
+  --shadow:0 14px 28px rgba(0,25,0,.28),0 3px 6px rgba(0,25,0,.14);
+  --tm-pie:#FA8005; --tm-sand:#FCD805; --tm-cap:#034102; --tm-ink:#0F2A0E;
+  background:#034102;
+}
+/* ---------- 구겨진 종이 바탕 ---------- */
+#bg.bg-paper{background-color:#034102;background-size:700px 700px;background-blend-mode:soft-light;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='5' seed='7'/%3E%3CfeDiffuseLighting lighting-color='%23fff' surfaceScale='4'%3E%3CfeDistantLight azimuth='40' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E")}
+body.is-break #bg.pat.bg-paper{background-color:#E86F00;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='5' seed='7'/%3E%3CfeDiffuseLighting lighting-color='%23fff' surfaceScale='4'%3E%3CfeDistantLight azimuth='40' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E")}
+
+/* ---------- 카드: 크림색 종이 + 마스킹테이프 ---------- */
+body.theme-sweet .card{background:var(--paper);backdrop-filter:none;-webkit-backdrop-filter:none}
+body.theme-sweet .stage-col{position:relative}
+body.theme-sweet #app:not(.wb-on) .stage-col::before,body.theme-sweet .mock::before{content:"";position:absolute;z-index:4;pointer-events:none;width:120px;height:30px;background:var(--tape);
+  clip-path:polygon(3% 8%,10% 0,22% 9%,35% 1%,50% 8%,64% 0,78% 7%,90% 0,97% 9%,100% 50%,97% 92%,88% 100%,76% 92%,62% 100%,48% 93%,34% 100%,20% 92%,8% 100%,2% 90%,0 50%)}
+body.theme-sweet #app:not(.wb-on) .stage-col::before{top:-13px;left:calc(50% - 60px);transform:rotate(-3deg)}
+
+/* ---------- 위쪽 막대 ---------- */
+body.theme-sweet .bellbtn{background:var(--sunny);color:var(--forest);box-shadow:0 6px 0 #B89A00,0 10px 18px rgba(0,0,0,.25)}
+body.theme-sweet .bellbtn:active{box-shadow:0 2px 0 #B89A00}
+body.theme-sweet .clock .hm{color:var(--forest-2)}
+body.theme-sweet .mini-light{background:var(--forest-2)}
+body.theme-sweet .tt .p{background:var(--paper-2);border:2px dashed transparent}
+body.theme-sweet .tt .p.now{background:var(--forest);color:var(--lime);box-shadow:0 6px 0 var(--forest-2),0 10px 18px rgba(0,30,0,.3)}
+body.theme-sweet .tt .p.now small{color:#D7F98A}
+body.theme-sweet .tt .p.next{outline:0;border-color:var(--orange);background:var(--sunny-soft)}
+body.theme-sweet .timemove{background:var(--paper);border-color:var(--line)}
+body.theme-sweet .loginbtn,body.theme-sweet .btn{background:var(--forest);color:var(--lime)}
+body.theme-sweet .btn.ghost{background:var(--paper-2);color:var(--ink)}
+body.theme-sweet .btn.danger{background:var(--red);color:#fff}
+body.theme-sweet .avatar{background:var(--forest);color:var(--lime)}
+body.theme-sweet .save.ok{background:var(--lime-soft);color:var(--forest)}
+body.theme-sweet .save.guest{background:var(--orange-soft);color:#A3400A}.save.guest .d{background:var(--orange)}
+body.theme-sweet .guestbar{background:var(--orange);color:#fff}
+
+/* ---------- 수업 화면 ---------- */
+body.theme-sweet .band{background:var(--lime);color:var(--forest);letter-spacing:.5px}
+body.theme-sweet .band.soon{background:var(--sunny);color:var(--forest)}
+body.theme-sweet .wb-toggle{background:var(--forest);color:var(--lime)}
+body.theme-sweet .wb-toggle.on{background:var(--paper);color:var(--forest);border:2px solid var(--forest)}
+body.theme-sweet #stage > .wb-toggle:first-child{background:var(--forest);color:var(--lime);box-shadow:0 4px 0 var(--forest-2)}
+body.theme-sweet .subject{color:var(--forest);letter-spacing:-1px;text-shadow:0 4px 0 rgba(182,254,0,.55)}
+body.theme-sweet .mode-soon .subject{color:var(--forest)}
+/* 준비물: 포스트잇 */
+body.theme-sweet .chip{background:var(--sunny);color:var(--forest-2);border-radius:4px;box-shadow:0 6px 10px rgba(80,60,0,.18);transform:rotate(-1.2deg)}
+body.theme-sweet .chip:nth-child(2n){transform:rotate(1.4deg);background:#FFE45C}
+body.theme-sweet .chip:nth-child(3n){background:#FFD233;transform:rotate(-.4deg)}
+body.theme-sweet .mode-soon .chip{background:var(--sunny)}
+body.theme-sweet .morning .first{color:var(--forest)}
+body.theme-sweet .morning .hello{color:var(--kraft-ink)}
+body.theme-sweet .none .t{color:var(--kraft-ink)}
+/* 쉬는 시간: 주황 바탕 + 노랑 글씨 */
+body.theme-sweet .mode-break .stage{background:var(--paper)}
+body.theme-sweet .brk-title{color:var(--orange)}
+body.theme-sweet .brk-time{color:var(--forest-2)}
+body.theme-sweet .brk.t-num .brk-time{color:var(--orange)}
+body.theme-sweet .next{background:var(--kraft);box-shadow:0 8px 16px rgba(60,30,0,.25);border:0;border-radius:6px}
+body.theme-sweet .next h3{color:#3B2100}
+body.theme-sweet .next .chip{background:var(--paper);color:var(--kraft-ink);transform:none;box-shadow:none;border-radius:8px}
+body.theme-sweet .next.flash{border-color:var(--sunny)}
+body.theme-sweet .mode-end .stage{background:var(--paper)}
+body.theme-sweet .done .t{color:var(--forest);text-shadow:0 5px 0 var(--lime)}
+body.theme-sweet .done .stars svg{fill:var(--sunny);stroke:var(--orange)}
+
+/* ---------- 과제 정류장 ---------- */
+body.theme-sweet .tasks-head h2{color:var(--forest)}
+body.theme-sweet .tasks-head .cnt{background:var(--lime);color:var(--forest)}
+body.theme-sweet .tasks-head .reset{background:var(--paper);border-color:var(--line)}
+body.theme-sweet .prog{background:var(--paper-2)}
+body.theme-sweet .prog i{background:linear-gradient(90deg,var(--forest),var(--lime))}
+body.theme-sweet .track::before{border-top-color:var(--kraft)}
+body.theme-sweet .st .mark{border-color:var(--forest);color:var(--forest);background:var(--paper)}
+body.theme-sweet .st.fin .mark{border-color:var(--orange);color:var(--orange)}
+body.theme-sweet .st .lbl{color:var(--forest-2)}
+body.theme-sweet .st .tags{background:var(--paper-2);border:2px dashed #D8CFB6}
+body.theme-sweet .st.fin .tags{background:var(--lime-soft);border-color:#C7EE6A}
+body.theme-sweet .tag{background:#fff;box-shadow:0 2px 0 #D5CCB2;color:var(--ink)}
+body.theme-sweet .st.fin .tag,body.theme-sweet .tgrid tr.ok td.nm .tag{background:var(--forest);color:var(--lime);box-shadow:0 2px 0 var(--forest-2)}
+body.theme-sweet .st.fin .tag small,body.theme-sweet .tgrid tr.ok td.nm .tag small{color:#CDEB91}
+body.theme-sweet .track.day .st.pstart .mark{border-color:var(--orange);color:var(--orange)}
+body.theme-sweet .track.day .st.pstart .pt{color:var(--orange)}
+body.theme-sweet .tgrid th{background:var(--paper);color:var(--forest)}
+body.theme-sweet .tgrid th.pg{color:var(--orange)}
+body.theme-sweet .ck.on{background:var(--forest);border-color:var(--forest);color:var(--lime)}
+body.theme-sweet .tgrid td.fin{color:var(--forest)}
+body.theme-sweet .tasks.full{background:var(--paper)}
+body.theme-sweet .tasks.full .st{background:var(--paper-2)}
+body.theme-sweet .tasks.full .st.fin{background:var(--lime-soft)}
+
+/* ---------- 위젯 바 · 창 ---------- */
+body.theme-sweet .wbar .w{color:var(--forest-2)}
+body.theme-sweet .wbar .w:hover,body.theme-sweet .wbar .w.on{background:var(--lime);color:var(--forest)}
+body.theme-sweet .wbar .sep{background:var(--line)}
+body.theme-sweet .win{background:var(--paper);box-shadow:0 20px 50px rgba(0,25,0,.4)}
+body.theme-sweet .win-h{background:var(--forest);color:var(--lime)}
+body.theme-sweet .win-h svg{color:var(--lime)}
+body.theme-sweet .win-h .x button{color:#CDEB91}
+body.theme-sweet .win-h .x button:hover{background:var(--forest-3)}
+body.theme-sweet .pick-name{background:var(--sunny-soft);color:var(--forest)}
+body.theme-sweet .pick-name.hit{background:var(--lime);color:var(--forest)}
+body.theme-sweet .lights{background:var(--forest-2)}
+body.theme-sweet .seg{background:var(--paper-2)}
+body.theme-sweet .seg button.sel{background:#fff;color:var(--forest)}
+body.theme-sweet .badge{background:var(--orange)}
+
+/* ---------- 설정 · 기록 · 알림 ---------- */
+body.theme-sweet .set,body.theme-sweet .hist{background:var(--paper)}
+body.theme-sweet .set-h h2,body.theme-sweet .hist-h h2{color:var(--forest)}
+body.theme-sweet .set-h .x,body.theme-sweet .hist-h .x{background:var(--paper-2)}
+body.theme-sweet .prow{background:#fff}
+body.theme-sweet .prow.am{background:var(--sunny-soft);border-color:#F0D96A}
+body.theme-sweet .days button.sel,body.theme-sweet .studs button.sel{background:var(--forest);color:var(--lime)}
+body.theme-sweet .toast{background:var(--forest-2);color:var(--lime)}
+body.theme-sweet .menu{background:var(--paper)}
+
+/* ---------- 판서 ---------- */
+body.theme-sweet .wb-wrap{background:#FFFEF8}
+body.theme-sweet .tb.sel{background:var(--forest);color:var(--lime);border-color:var(--forest)}
+body.theme-sweet .wb-wx .tb{background:var(--lime-soft);color:var(--forest)}
+body.theme-sweet .wb-left{background:var(--orange-soft)}
+body.theme-sweet .wb-left b{color:var(--orange)}
+body.theme-sweet .wb-head .subject{text-shadow:none}
+body.theme-sweet .wb-close{background:var(--forest);color:var(--lime)}
+
+/* ---------- 시작 화면 · 역할 · 권한 요청 ---------- */
+body.theme-sweet:not([data-view=board]) #bg{background-color:#034102;background-size:700px 700px;background-blend-mode:soft-light;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='5' seed='7'/%3E%3CfeDiffuseLighting lighting-color='%23fff' surfaceScale='4'%3E%3CfeDistantLight azimuth='40' elevation='48'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E")}
+body.theme-sweet .land h1{color:var(--lime);text-transform:uppercase;text-shadow:0 6px 0 rgba(0,0,0,.25)}
+body.theme-sweet .land h1 em{color:var(--sunny)}
+body.theme-sweet .land-text>p{color:#E9F7D2}
+body.theme-sweet .land-sub{color:#B9D59A!important}
+body.theme-sweet .land-tag{background:var(--sunny);color:var(--forest)}
+body.theme-sweet .cta{background:var(--lime);color:var(--forest);box-shadow:0 6px 0 #7FB300,0 14px 30px rgba(0,0,0,.3)}
+body.theme-sweet .cta:active{box-shadow:0 2px 0 #7FB300}
+body.theme-sweet .mock{background:var(--paper);position:relative}
+body.theme-sweet .mock::before{top:-14px;left:40%;transform:rotate(-6deg)}
+body.theme-sweet .mock-top .mb{background:var(--sunny);color:var(--forest)}
+body.theme-sweet .mock-top .mt.now,body.theme-sweet .mock-band{background:var(--lime);color:var(--forest)}
+body.theme-sweet .mock-body b{color:var(--forest)}
+body.theme-sweet .mock-body span{background:var(--sunny);border-radius:4px}
+body.theme-sweet .mock-track{border-top-color:var(--kraft)}
+body.theme-sweet .mock-track i{border-color:var(--forest)}
+body.theme-sweet .mock-track i.f{border-color:var(--orange)}
+body.theme-sweet .feat{background:var(--paper);box-shadow:0 8px 18px rgba(0,0,0,.25)}
+body.theme-sweet .feat:nth-child(3n+1){transform:rotate(-1deg)}
+body.theme-sweet .feat:nth-child(3n+2){background:var(--sunny);transform:rotate(.8deg)}
+body.theme-sweet .feat:nth-child(3n){background:var(--kraft);color:#3B2100;transform:rotate(-.5deg)}
+body.theme-sweet .feat:nth-child(3n) span{color:#4E2E05}
+body.theme-sweet .feat svg{background:var(--forest);color:var(--lime)}
+body.theme-sweet .role-wrap h2{color:var(--lime)}
+body.theme-sweet .role-wrap>p,body.theme-sweet .role-wrap .hint{color:#D5EBB8}
+body.theme-sweet .role-wrap .linkbtn{color:var(--sunny)}
+body.theme-sweet .role-wrap .back{color:var(--lime)}
+body.theme-sweet .role{background:var(--paper)}
+body.theme-sweet .role:nth-child(2){background:var(--sunny)}
+body.theme-sweet .role:nth-child(3){background:var(--kraft)}
+body.theme-sweet .role:nth-child(3) span{color:#4E2E05}
+body.theme-sweet .role:hover,body.theme-sweet .role.pre{border-color:var(--lime)}
+body.theme-sweet .role svg,body.theme-sweet .role[data-role=student] svg,body.theme-sweet .role[data-role=guest] svg{background:var(--forest);color:var(--lime)}
+body.theme-sweet #request .role-wrap{color:var(--ink)}
+body.theme-sweet .reqform,body.theme-sweet #request [data-r=req]{background:var(--paper);border-radius:22px}
+body.theme-sweet #request [data-r=req]{padding:28px;margin-top:6vh}
+body.theme-sweet #request [data-r=req] h2{color:var(--forest)}
+body.theme-sweet #request [data-r=req] .hint{color:var(--muted)}
+body.theme-sweet #request [data-r=req] .back{color:var(--forest)}
+
+/* ---------- 학생 화면 ---------- */
+body.theme-sweet[data-view=student]{background:#034102}
+body.theme-sweet .stu-h{background:var(--lime);color:var(--forest)}
+body.theme-sweet .stu-h .linkbtn{color:var(--forest)}
+body.theme-sweet .stu-card{background:var(--paper);box-shadow:0 10px 22px rgba(0,0,0,.28)}
+body.theme-sweet .stu-card h2,body.theme-sweet .stu-card h3{color:var(--forest)}
+body.theme-sweet .bigbtn{background:var(--forest);color:var(--lime);box-shadow:0 6px 0 var(--forest-2)}
+body.theme-sweet .bigbtn.go{background:var(--orange);color:#fff;box-shadow:0 6px 0 #B85A00}
+body.theme-sweet .pill-b{background:var(--lime);color:var(--forest)}
+body.theme-sweet .pill-b.brk{background:var(--orange-soft);color:#A3400A}
+body.theme-sweet .vst.cur .mark{border-color:var(--forest);color:var(--forest);box-shadow:0 0 0 6px rgba(182,254,0,.5)}
+body.theme-sweet .vst.cur .lbl{color:var(--forest)}
+body.theme-sweet .vst.done .mark,body.theme-sweet .pk.on i{background:var(--forest);border-color:var(--forest);color:var(--lime)}
+body.theme-sweet .pk.on{border-color:var(--forest);background:var(--lime-soft)}
+body.theme-sweet .bub.s{background:var(--forest);color:var(--lime)}
+body.theme-sweet .bub.t{background:var(--sunny-soft)}
+body.theme-sweet .stu-card .help{background:#FFE9D6;color:#A3400A}
+
+/* ---------- 손글씨 메모 (빈 화면 안내) ---------- */
+body.theme-sweet .hint{color:var(--muted)}
+
+/* ---------- 휴대폰 ---------- */
+@media (max-width:760px),(max-height:500px){
+  body.theme-sweet #app:not(.wb-on) .stage-col::before{width:80px;height:22px;top:-9px;left:calc(50% - 40px)}
+  body.theme-sweet .wbar{background:var(--paper)}
+  body.theme-sweet .subject{text-shadow:0 3px 0 rgba(182,254,0,.55)}
+}
+body.theme-sweet .role:nth-child(2) span{color:#4A3F00}
