@@ -267,7 +267,7 @@ export function openTimer() {
         <label><input type="number" min="0" max="59" data-u="s" value="${c.timer.s}" inputmode="numeric"><span>초</span></label>
       </div>
       <div class="row tmr-pre" data-r="pre">${[[30, '30초'], [60, '1분'], [180, '3분'], [300, '5분'], [600, '10분']].map(([v, n]) => `<button class="btn ghost" data-p="${v}">${n}</button>`).join('')}</div>
-      <div class="row tmr-adj" data-r="adj" hidden>${[[-60, '−1분'], [-30, '−30초'], [30, '+30초'], [60, '+1분'], [300, '+5분']].map(([v, n]) => `<button class="btn ghost ${v < 0 ? 'minus' : ''}" data-adj="${v}">${n}</button>`).join('')}</div>
+      <div class="row tmr-adj" data-r="adj">${[[-300, '−5분'], [-60, '−1분'], [-30, '−30초'], [30, '+30초'], [60, '+1분'], [300, '+5분']].map(([v, n]) => `<button class="btn ghost ${v < 0 ? 'minus' : ''}" data-adj="${v}">${n}</button>`).join('')}</div>
       <div class="row tmr-go"><button class="btn" data-a="go">시작</button><button class="btn ghost" data-a="reset">다시</button><span class="sp"></span>
         <div class="seg sm">${[['hour', '모래시계'], ['pie', '부채꼴'], ['num', '숫자만']].map(([k, n]) => `<button data-t="${k}" class="${c.timer.type === k ? 'sel' : ''}">${n}</button>`).join('')}</div></div>
       <label class="chk tmr-bell">끝날 때 소리 <select data-r="bell">${BELLS.map((b, i) => `<option value="${i}" ${i === c.timer.bell ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select><button class="btn ghost" data-a="test">들어 보기</button></label>
@@ -283,9 +283,9 @@ function tDraw() {
   q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
   a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
   q('set').classList.toggle('lock', T.running);
-  // 진행 중(멈춤·끝 포함)에는 '시간 더하기·빼기' 버튼, 처음에는 시간 고르기 버튼
+  // 시간 더하기·빼기 버튼은 언제나 보임. 시작 전에는 시간 고르기 버튼도 함께
   const busy = T.running || done || (T.total && T.left < T.total);
-  q('pre').hidden = !!busy; q('adj').hidden = !busy;
+  q('pre').hidden = !!busy;
   w.querySelectorAll('[data-t]').forEach((x) => x.classList.toggle('sel', x.dataset.t === type));
 }
 function tLoop() {
@@ -334,6 +334,14 @@ function bindTimer(w) {
     b.onclick = () => {
       const v = +b.dataset.adj;
       if (T.done) { if (v > 0) { tStart(v); share(); } return; } // 끝난 뒤 더하면 그 시간만큼 다시 시작
+      if (!T.running && T.left >= T.total) { // 시작 전: 맞춰 둔 시간을 늘리고 줄임
+        const nv = Math.max(0, Math.min(23 * 3600 + 59 * 60 + 59, setSec() + v));
+        c.timer.h = Math.floor(nv / 3600); c.timer.m = Math.floor(nv / 60) % 60; c.timer.s = nv % 60;
+        w.querySelectorAll('[data-u]').forEach((i) => { i.value = c.timer[i.dataset.u]; });
+        ctx.save(); tReset(); share();
+        b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
+        return;
+      }
       const left = T.running ? Math.max(0, (T.endAt - tnow()) / 1000) : T.left;
       if (v < 0 && left <= 1) return;
       const nl = Math.max(1, left + v);
