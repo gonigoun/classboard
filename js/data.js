@@ -38,14 +38,15 @@ export function sampleConfig() {
   const weekTables = {};
   for (let d = 1; d <= 5; d++) weekTables[d] = samplePeriods(d);
   return {
-    version: 2,
+    version: 3,
+    theme: 'sunset',
     weekTables,
     roster: [...SAMPLE_ROSTER],
     sound: { bell: 0, volume: 0.8, on: true, auto: true, custom: [] },
     timerType: 'pie',
     showTasks: true,
     tasksClosed: false,
-    bg: { kind: 'pattern', value: 'grid', color: '#DCE8FB', dim: 0 },
+    bg: { kind: 'pattern', value: 'sunset', color: '#FFF4E0', dim: 0 },
     light: { state: 'g', link: false, yellow: 45, red: 70 },
     wins: {},
     wakeLock: true,
@@ -75,6 +76,12 @@ export function normalizeConfig(c) {
       out.weekTables[d] = [morningPeriod(hm, end), ...t];
     }
     out.version = 2;
+  }
+  // 3판: 새 화면 색 '노을'. 기본 모눈 바탕을 쓰고 있었으면 노을 바탕으로
+  if (!(c.version >= 3)) {
+    out.theme = 'sunset';
+    if (out.bg.kind === 'pattern' && out.bg.value === 'grid' && (!out.bg.color || out.bg.color.toUpperCase() === '#DCE8FB')) out.bg = { ...out.bg, value: 'sunset', color: '#FFF4E0' };
+    out.version = 3;
   }
   return out;
 }

@@ -16,6 +16,7 @@ export function toast(t, ms = 2600) {
  * 리본(앞뒤로 뒤집히며 반짝), 동그라미, 별, 꼬불 리본 — 어울리는 색 묶음으로
  */
 const CONF_PAL = [
+  ['#5F4B8B', '#A95691', '#E36A85', '#FF8F70', '#FFC261', '#F9F871', '#FFFFFF'], // 노을
   ['#FF5D73', '#FFB3C1', '#FFD166', '#06D6A0', '#4CC9F0', '#7B61FF', '#F7F7FF'], // 축제
   ['#F9C74F', '#F9844A', '#F94144', '#90BE6D', '#43AA8B', '#577590', '#FFF3B0'], // 가을 들판
   ['#FFADAD', '#FFD6A5', '#FDFFB6', '#CAFFBF', '#9BF6FF', '#A0C4FF', '#BDB2FF'], // 파스텔
@@ -137,14 +138,14 @@ export function timerSvg(type, f) {
   f = Math.max(0, Math.min(1, f));
   if (type === 'pie') {
     const a = f * 2 * Math.PI, r = 90, x = 100 + r * Math.sin(a), y = 100 - r * Math.cos(a), big = f > 0.5 ? 1 : 0;
-    const path = f >= 0.999 ? '<circle cx="100" cy="100" r="90" fill="#FF5A4A"/>' : f <= 0.001 ? '' : `<path d="M100 100 L100 10 A90 90 0 ${big} 1 ${x.toFixed(2)} ${y.toFixed(2)} Z" fill="#FF5A4A"/>`;
-    let ticks = ''; for (let i = 0; i < 12; i++) { const t = i / 12 * 2 * Math.PI; ticks += `<line x1="${100 + 96 * Math.sin(t)}" y1="${100 - 96 * Math.cos(t)}" x2="${100 + 86 * Math.sin(t)}" y2="${100 - 86 * Math.cos(t)}" stroke="#1E2433" stroke-width="3" stroke-linecap="round"/>`; }
-    return `<svg viewBox="0 0 200 200" data-r="tv"><circle cx="100" cy="100" r="98" fill="#fff" stroke="#1E2433" stroke-width="4"/>${path}${ticks}<circle cx="100" cy="100" r="7" fill="#1E2433"/></svg>`;
+    const path = f >= 0.999 ? '<circle cx="100" cy="100" r="90" style="fill:var(--tm-pie,#FF5A4A)"/>' : f <= 0.001 ? '' : `<path d="M100 100 L100 10 A90 90 0 ${big} 1 ${x.toFixed(2)} ${y.toFixed(2)} Z" style="fill:var(--tm-pie,#FF5A4A)"/>`;
+    let ticks = ''; for (let i = 0; i < 12; i++) { const t = i / 12 * 2 * Math.PI; ticks += `<line x1="${100 + 96 * Math.sin(t)}" y1="${100 - 96 * Math.cos(t)}" x2="${100 + 86 * Math.sin(t)}" y2="${100 - 86 * Math.cos(t)}" style="stroke:var(--tm-ink,#1E2433)" stroke-width="3" stroke-linecap="round"/>`; }
+    return `<svg viewBox="0 0 200 200" data-r="tv"><circle cx="100" cy="100" r="98" fill="#fff" style="stroke:var(--tm-ink,#1E2433)" stroke-width="4"/>${path}${ticks}<circle cx="100" cy="100" r="7" style="fill:var(--tm-ink,#1E2433)"/></svg>`;
   }
   const top = 70 * f, bot = 70 * (1 - f), id = 'g' + Math.random().toString(36).slice(2, 7);
   return `<svg viewBox="0 0 200 200" data-r="tv"><defs><clipPath id="${id}"><path d="M55 25 H145 C145 70 108 88 104 100 C108 112 145 130 145 175 H55 C55 130 92 112 96 100 C92 88 55 70 55 25Z"/></clipPath></defs>
-    <g clip-path="url(#${id})"><rect x="40" y="${98 - top}" width="120" height="${top}" fill="#FFB020"/><rect x="40" y="${175 - bot}" width="120" height="${bot}" fill="#FFB020"/>${f > 0 && f < 1 ? '<rect x="98.5" y="98" width="3" height="77" fill="#FFB020"/>' : ''}</g>
-    <path d="M55 25 H145 C145 70 108 88 104 100 C108 112 145 130 145 175 H55 C55 130 92 112 96 100 C92 88 55 70 55 25Z" fill="none" stroke="#1E2433" stroke-width="5" stroke-linejoin="round"/>
-    <rect x="44" y="14" width="112" height="12" rx="6" fill="#FF6B4A"/><rect x="44" y="174" width="112" height="12" rx="6" fill="#FF6B4A"/></svg>`;
+    <g clip-path="url(#${id})"><rect x="40" y="${98 - top}" width="120" height="${top}" style="fill:var(--tm-sand,#FFB020)"/><rect x="40" y="${175 - bot}" width="120" height="${bot}" style="fill:var(--tm-sand,#FFB020)"/>${f > 0 && f < 1 ? '<rect x="98.5" y="98" width="3" height="77" style="fill:var(--tm-sand,#FFB020)"/>' : ''}</g>
+    <path d="M55 25 H145 C145 70 108 88 104 100 C108 112 145 130 145 175 H55 C55 130 92 112 96 100 C92 88 55 70 55 25Z" fill="none" style="stroke:var(--tm-ink,#1E2433)" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="44" y="14" width="112" height="12" rx="6" style="fill:var(--tm-cap,#FF6B4A)"/><rect x="44" y="174" width="112" height="12" rx="6" style="fill:var(--tm-cap,#FF6B4A)"/></svg>`;
 }
 

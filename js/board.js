@@ -4,7 +4,7 @@ import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, get
 import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
 import * as store from './store.js';
 import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets, setWbHead, onWbFull, isPhone, setWbSync, applyRemote, setTvRatio, myRatio } from './whiteboard.js';
-import { initWidgets, applyBg, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer } from './widgets.js';
+import { initWidgets, applyBg, applyTheme, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer } from './widgets.js';
 import { initSettings, openSettings } from './settings.js';
 import { openHistory } from './history.js';
 import { initClassroom, openStudents, openMessages, onSeats, onMsgs, unreadCount, syncNames } from './classroom.js';
@@ -436,7 +436,7 @@ function tick() {
 
 function applyAll() {
   setVolume(S.cfg.sound.volume);
-  applyBg(); drawBellSel(); setLight(S.cfg.light.state, false); drawAcct(); drawBar();
+  applyTheme(); applyBg(); drawBellSel(); setLight(S.cfg.light.state, false); drawAcct(); drawBar();
   S.phaseKey = ''; tick();
 }
 

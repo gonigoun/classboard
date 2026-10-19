@@ -1,12 +1,31 @@
-// 판서: 펜·형광펜·글자·지우개·선택, 그림 붙여 넣기·크기 조절, 크게 보기
+// 판서: 펜·음영(네온)·글자·지우개·선택, 그림 붙여 넣기·크기 조절, 크게 보기
 // 좌표는 '가로 1400칸' 기준으로 저장해서 TV·노트북·휴대폰 어디서 봐도 같은 모양이에요.
 // 선생님 계정으로 여러 화면을 열면 선·글자가 서로 연동돼요 (그림은 그 화면에만).
-import { ic } from './ui.js';
+import { ic, toast } from './ui.js';
 
 const PEN = ['#1E2433', '#E5484D', '#2B6CE6', '#22A86B', '#7B5CFA', '#FF8A00'];
 const PASTEL = ['#FFF176', '#FFCCBC', '#C8E6C9', '#B3E5FC', '#E1BEE7', '#F8BBD0'];
+// 음영: 글자를 끌어서 고른 부분에만 네온색 바탕
+const NEON = [['#F4FF2E', '네온 노랑'], ['#3DFF8B', '네온 초록'], ['#FF4FD8', '네온 분홍'], ['#36E7FF', '네온 하늘'], ['#FF9F1C', '네온 주황']];
+/** 글자 상자 내용 정리: 글자·줄바꿈·바탕색(음영)만 남김 */
+function cleanHTML(html) {
+  const t = document.createElement('template'); t.innerHTML = html;
+  const okColor = (v) => /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\))$/i.test(v) && !/rgba\([^)]*,\s*0\s*\)/.test(v);
+  const esc = (x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const walk = (n) => [...n.childNodes].map((c) => {
+    if (c.nodeType === 3) return esc(c.textContent);
+    if (c.nodeType !== 1) return '';
+    const tag = c.tagName, inner = walk(c);
+    if (tag === 'BR') return '<br>';
+    if (tag === 'DIV' || tag === 'P') return `<div>${inner || '<br>'}</div>`;
+    const bg = (c.style && c.style.backgroundColor || '').trim();
+    if (bg && okColor(bg) && inner) return `<span style="background-color:${bg}">${inner}</span>`;
+    return inner;
+  }).join('');
+  return walk(t.content);
+}
 const LW = 1400; // 기준 가로 칸 수 (교실 TV 판서 폭쯤: 글자 크기 140이 TV에서 대략 140px)
-const WB = { tool: 'text', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, erase: { w: 40 }, txt: { size: 110, bold: false, c: PEN[0] }, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
+const WB = { tool: 'text', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, shade: { c: NEON[0][0] }, erase: { w: 40 }, txt: { size: 110, bold: false, c: PEN[0] }, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
 const TXT_SIZES = [24, 32, 48, 64, 80, 100, 110, 140, 180, 240];
 let wbEl = null, wbWidgets = [], sync = null, pendingRemote = null;
 const fullCbs = [];
@@ -42,7 +61,7 @@ function buildWB() {
   wbEl = document.createElement('div'); wbEl.className = 'wb-wrap pop';
   wbEl.innerHTML = `<div class="wb-top"><div class="wb-head"></div><button class="wb-close" data-r="close">${ic('x')}판서 닫기</button></div>
    <div class="wb-bar">
-     <div class="grp tools">${[['pen', 'pen', '펜'], ['hl', 'marker', '형광펜'], ['text', 'text', '글자'], ['erase', 'eraser', '지우개'], ['select', 'cursor', '선택']].map(([t, i, l]) => `<button class="tb" data-tool="${t}" title="${l}">${ic(i)}<span>${l}</span></button>`).join('')}</div>
+     <div class="grp tools">${[['pen', 'pen', '펜'], ['shade', 'marker', '음영'], ['text', 'text', '글자'], ['erase', 'eraser', '지우개'], ['select', 'cursor', '선택']].map(([t, i, l]) => `<button class="tb" data-tool="${t}" title="${l}">${ic(i)}<span>${l}</span></button>`).join('')}</div>
      <div class="grp" data-r="opts"></div>
      <div class="grp acts">
        <button class="tb" data-r="undo" title="되돌리기">${ic('undo')}</button>
@@ -98,6 +117,7 @@ function buildWB() {
   area.addEventListener('pointerdown', (e) => {
     const t = WB.tool;
     if (t === 'text') { if (e.target.closest('.obj')) return; e.preventDefault(); const [x, y] = pt(e); addText(x, y); return; }
+    if (t === 'shade') { if (!e.target.closest('.obj.txt')) { select(null); window.getSelection().removeAllRanges(); } return; } // 음영: 글자 상자 안에서 끌어서 고르기만
     if (t === 'select') { if (!e.target.closest('.obj')) select(null); return; }
     if (cur || e.button > 0) return;
     e.preventDefault(); pid = e.pointerId; try { area.setPointerCapture(pid); } catch (er) { /* 손가락을 놓친 경우에도 그리기는 계속 */ } select(null);
@@ -141,7 +161,7 @@ function buildWB() {
     o.querySelector('.del').onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); removeObj(o, true); };
     o.querySelector('.grip').onpointerdown = (e) => drag(e, o, 'move');
     o.addEventListener('pointerdown', (e) => {
-      if (WB.tool !== 'select' && WB.tool !== 'text') return;
+      if (WB.tool !== 'select' && WB.tool !== 'text' && WB.tool !== 'shade') return;
       select(o);
       if (o.classList.contains('img') && !e.target.closest('.hd,.del')) drag(e, o, 'move');
     });
@@ -184,7 +204,7 @@ function buildWB() {
     const ed = document.createElement('div'); ed.contentEditable = 'true'; o.appendChild(ed);
     // 테두리 둘레 어디를 잡아도 옮길 수 있게 (위·아래·왼쪽·오른쪽 띠)
     ['t', 'r', 'b', 'l'].forEach((k) => { const g = document.createElement('span'); g.className = 'edge ' + k; g.title = '끌어서 옮기기'; g.onpointerdown = (e) => drag(e, o, 'move'); o.appendChild(g); });
-    if (data) ed.textContent = data.text || '';
+    if (data) { if (data.html) ed.innerHTML = cleanHTML(data.html); else ed.textContent = data.text || ''; }
     place(o);
     ed.addEventListener('paste', (e) => { const s = e.clipboardData.getData('text/plain'); if (s) { e.preventDefault(); document.execCommand('insertText', false, s); } });
     ed.addEventListener('input', () => { clearTimeout(o._tm); o._tm = setTimeout(() => sendTxt(o), 600); });
@@ -195,9 +215,10 @@ function buildWB() {
   }
   function sendTxt(o) {
     if (!sync || !o._t || !o.isConnected) return;
-    const text = o.querySelector('[contenteditable]').textContent;
+    const ed = o.querySelector('[contenteditable]'), text = ed.textContent;
     if (!text.trim()) return;
-    sync.put({ id: o._id, k: 't', x: Math.round(o._g.x), y: Math.round(o._g.y), size: o._t.size, bold: !!o._t.bold, c: o._t.c, text, at: o._at || (o._at = Date.now()) });
+    const html = ed.querySelector('span') ? cleanHTML(ed.innerHTML) : '';
+    sync.put({ id: o._id, k: 't', x: Math.round(o._g.x), y: Math.round(o._g.y), size: o._t.size, bold: !!o._t.bold, c: o._t.c, text, html, at: o._at || (o._at = Date.now()) });
   }
   function applyTxt(o) { const ed = o.querySelector('[contenteditable]'), t = o._t; ed.style.fontSize = t.size * WB.scale + 'px'; ed.style.fontWeight = t.bold ? 900 : 500; ed.style.color = t.c; }
   function applySel() { if (WB.sel && WB.sel.classList.contains('txt')) { WB.sel._t = { ...WB.txt }; applyTxt(WB.sel); sendTxt(WB.sel); } }
@@ -225,10 +246,25 @@ function buildWB() {
       const ed = o.querySelector('[contenteditable]');
       if (document.activeElement === ed || pendingIds.has(d.id)) return; // 내가 쓰는 중이면 그대로
       o._g.x = d.x; o._g.y = d.y; o._t = { size: d.size, bold: d.bold, c: d.c };
-      if (ed.textContent !== d.text) ed.textContent = d.text;
+      if (d.html) { const h = cleanHTML(d.html); if (cleanHTML(ed.innerHTML) !== h) ed.innerHTML = h; }
+      else if (ed.textContent !== d.text || ed.querySelector('span')) ed.textContent = d.text;
       place(o);
     });
   };
+
+  /** 고른 글자에 음영 넣기(c) 또는 지우기(null). 고른 글자가 없으면 안내 */
+  function shadeSel(c) {
+    const sel = window.getSelection();
+    const r = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    const node = r && (r.commonAncestorContainer.nodeType === 1 ? r.commonAncestorContainer : r.commonAncestorContainer.parentElement);
+    const ed = node && node.closest('.obj.txt [contenteditable]');
+    if (!r || r.collapsed || !ed || !wbEl.contains(ed)) { toast('글자 상자 안에서 음영을 넣을 글자를 끌어서 고른 뒤 색을 눌러요'); return false; }
+    document.execCommand('styleWithCSS', false, true);
+    document.execCommand('hiliteColor', false, c || 'transparent');
+    const html = cleanHTML(ed.innerHTML); if (html !== ed.innerHTML) ed.innerHTML = html; // 음영 말고 다른 꾸밈은 빼고 정리
+    sendTxt(ed.closest('.obj'));
+    return true;
+  }
 
   // 도구와 세부 설정
   function setTool(t) {
@@ -244,6 +280,8 @@ function buildWB() {
     let h = '';
     if (t === 'pen') h = sw(PEN, WB.pen.c) + sz([2, 4, 8, 14], WB.pen.w, WB.pen.c);
     else if (t === 'hl') h = sw(PASTEL, WB.hl.c) + sz([16, 28, 44], WB.hl.w, WB.hl.c);
+    else if (t === 'shade') h = NEON.map(([c, n]) => `<button class="neo ${c === WB.shade.c ? 'sel' : ''}" data-neo="${c}" title="${n}" style="--n:${c}"><i></i></button>`).join('')
+      + `<button class="tb" data-r="unshade" title="고른 글자의 음영 지우기">${ic('eraser')}<span>음영 지우기</span></button><span class="hint shade-hint">글자를 끌어서 고른 뒤 색을 눌러요</span>`;
     else if (t === 'erase') h = sz([20, 40, 80], WB.erase.w, '#C5CCDA');
     else if (t === 'text') h = `<label class="txsz" title="글자 크기: 직접 적거나 목록에서 골라요"><input type="number" data-r="txSize" min="10" max="400" step="1" list="wbTxSizes" value="${WB.txt.size}"><datalist id="wbTxSizes">${TXT_SIZES.map((s) => `<option value="${s}">`).join('')}</datalist></label>
         <button class="tb ${WB.txt.bold ? 'sel' : ''}" data-r="txBold" style="font-weight:900">굵게</button>` + sw(PEN, WB.txt.c);
@@ -258,6 +296,8 @@ function buildWB() {
       ts.onchange = () => setSize(true);
       ts.onkeydown = (e) => { if (e.key === 'Enter') { setSize(true); ts.blur(); } e.stopPropagation(); };
     }
+    box.querySelectorAll('[data-neo]').forEach((b) => { b.onpointerdown = (e) => { e.preventDefault(); WB.shade.c = b.dataset.neo; if (shadeSel(WB.shade.c)) renderOpts(); else { box.querySelectorAll('[data-neo]').forEach((x) => x.classList.toggle('sel', x === b)); } }; });
+    const us = box.querySelector('[data-r="unshade"]'); if (us) us.onpointerdown = (e) => { e.preventDefault(); shadeSel(null); };
     const tb = box.querySelector('[data-r="txBold"]'); if (tb) tb.onpointerdown = (e) => { e.preventDefault(); WB.txt.bold = !WB.txt.bold; applySel(); renderOpts(); };
   }
   wbEl.querySelectorAll('[data-tool]').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });

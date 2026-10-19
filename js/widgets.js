@@ -8,7 +8,7 @@ const fx = (name, ...a) => { if (ctx.soundOn()) FX[name](...a); };
 
 /* ---------- 배경 ---------- */
 const PATTERNS = [
-  { id: 'grid', name: '모눈' }, { id: 'notebook', name: '공책' }, { id: 'chalk', name: '칠판' },
+  { id: 'sunset', name: '노을' }, { id: 'grid', name: '모눈' }, { id: 'notebook', name: '공책' }, { id: 'chalk', name: '칠판' },
   { id: 'dots', name: '물방울' }, { id: 'solid', name: '단색' },
 ];
 const svgUrl = (s) => `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
@@ -41,6 +41,9 @@ function autoBg() {
   if (h < 15) return 'linear-gradient(160deg,#D9F2E6,#F4FBF7)';
   return 'linear-gradient(160deg,#FFE3C7,#FFF6EC)';
 }
+
+/** 화면 색 테마: 노을(기본값) / 기본(파랑) */
+export function applyTheme() { document.body.classList.toggle('theme-sunset', ctx.cfg().theme !== 'classic'); }
 
 export function applyBg() {
   const b = ctx.cfg().bg, el = $('#bg');
@@ -96,9 +99,19 @@ function drawBg(w) {
   else body = `<label>내 컴퓨터 사진 <input type="file" accept="image/*" data-r="file"></label>
       <label>이미지 주소 <input type="url" data-r="url" placeholder="https://…" value="${b.kind === 'url' ? esc(b.value) : ''}"><button class="btn ghost" data-r="useurl">넣기</button></label>
       <p class="hint">사진은 로그인한 선생님 기록에만 저장돼요. 다른 사람이 만든 사진은 저작권을 확인하고 써 주세요.</p>`;
-  box.innerHTML = `<div class="tabs">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${bgTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}
+  const th = ctx.cfg().theme === 'classic' ? 'classic' : 'sunset';
+  box.innerHTML = `<div class="themes"><span>화면 색</span>${[['sunset', '노을'], ['classic', '기본 (파랑)']].map(([k, n]) => `<button data-th="${k}" class="${th === k ? 'sel' : ''} th-${k}"><i></i>${n}</button>`).join('')}</div>
+    <div class="tabs">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${bgTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}
     <label>배경 어둡게 <input type="range" min="0" max="70" value="${b.dim || 0}" data-r="dim"> <span class="num">${b.dim || 0}%</span></label>`;
   const set = (patch) => { Object.assign(ctx.cfg().bg, patch); ctx.save(); applyBg(); drawBg(w); };
+  box.querySelectorAll('[data-th]').forEach((t) => {
+    t.onclick = () => {
+      const c = ctx.cfg(); c.theme = t.dataset.th;
+      // 테마에 어울리는 바탕으로 같이 바꿈 (사진·일러스트를 쓰고 있으면 그대로)
+      if (c.bg.kind === 'pattern' || c.bg.kind === 'auto') Object.assign(c.bg, c.theme === 'sunset' ? { kind: 'pattern', value: 'sunset', color: '#FFF4E0' } : { kind: 'pattern', value: 'grid', color: '#DCE8FB' });
+      ctx.save(); applyTheme(); applyBg(); drawBg(w);
+    };
+  });
   box.querySelectorAll('[data-tab]').forEach((t) => { t.onclick = () => { bgTab = t.dataset.tab; drawBg(w); }; });
   box.querySelectorAll('[data-pt]').forEach((t) => { t.onclick = () => set({ kind: 'pattern', value: t.dataset.pt }); });
   box.querySelectorAll('[data-il]').forEach((t) => { t.onclick = () => set({ kind: 'illust', value: t.dataset.il }); });
@@ -127,6 +140,7 @@ function patPreview(id, color) {
     chalk: 'background:#2F4F43;color:#fff',
     dots: 'background:#EFE9FF radial-gradient(rgba(123,92,250,.35) 3px,transparent 4px) 0 0/14px 14px',
     solid: `background:${c}`,
+    sunset: 'background:linear-gradient(135deg,#FFF6C9,#FFD9C2 45%,#F2C9DD 80%,#D9CDEA);color:#5F4B8B',
   }[id];
 }
 

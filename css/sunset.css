@@ -1,0 +1,159 @@
+/* =====================================================================
+   '노을' 테마: 보라 #5F4B8B · 자두 #A95691 · 장미 #E36A85 · 산호 #FF8F70 · 금잔화 #FFC261 · 레몬 #F9F871
+   body.theme-sunset 일 때만 적용 (배경 창 '화면 색'에서 '기본(파랑)'으로 되돌릴 수 있어요)
+   ===================================================================== */
+body.theme-sunset{
+  --violet:#5F4B8B; --plum:#A95691; --rose:#E36A85; --coral2:#FF8F70; --marigold:#FFC261; --lemon:#F9F871;
+  --violet-soft:#EEE9F6; --plum-soft:#F7E7F1; --rose-soft:#FDE8ED; --coral-soft:#FFEAE2; --marigold-soft:#FFF2DA; --lemon-soft:#FDFCD8;
+  --grad:linear-gradient(100deg,#5F4B8B,#A95691);
+  --grad-warm:linear-gradient(100deg,#E36A85,#FF8F70 55%,#FFC261);
+
+  --blue:var(--violet); --blue-soft:var(--violet-soft); --blue-deep:#4A3A70;
+  --coral:var(--coral2); --sun:var(--marigold); --cream:#FFF8EE;
+  --yellow:var(--marigold); --yellow-soft:var(--marigold-soft);
+  --green:var(--plum); --green-soft:var(--plum-soft);
+  --purple:var(--plum); --purple-soft:var(--plum-soft);
+  --ink:#2F2547; --muted:#7B6F92; --line:#EEE3EC;
+  --card:rgba(255,255,255,.95);
+  --shadow:0 12px 30px rgba(95,75,139,.16),0 2px 6px rgba(95,75,139,.10);
+  --tm-pie:#FF8F70; --tm-sand:#FFC261; --tm-cap:#E36A85; --tm-ink:#2F2547;
+  background:#FFF1E2;
+}
+/* ---------- 노을 바탕 ---------- */
+#bg.bg-sunset{background-color:#FFF1E2;background-image:radial-gradient(rgba(169,86,145,.10) 1.4px,transparent 1.6px),linear-gradient(135deg,#FFF7D1 0%,#FFE2CF 42%,#F7D3E2 78%,#E3D9F1 100%);background-size:28px 28px,100% 100%}
+body.is-break #bg.pat.bg-sunset{background-image:radial-gradient(rgba(227,106,133,.14) 1.4px,transparent 1.6px),linear-gradient(135deg,#FFF3C4 0%,#FFD3B8 45%,#FFC1B2 100%);background-size:28px 28px,100% 100%}
+body.theme-sunset:not([data-view=board]) #bg{background-color:#FFF1E2;background-image:radial-gradient(rgba(169,86,145,.10) 1.4px,transparent 1.6px),linear-gradient(135deg,#FFF7D1 0%,#FFE2CF 42%,#F7D3E2 78%,#E3D9F1 100%);background-size:28px 28px,100% 100%}
+
+/* ---------- 위쪽 막대 ---------- */
+body.theme-sunset .bellbtn{background:linear-gradient(160deg,#FF8F70,#E36A85);box-shadow:0 6px 0 #B8485F,0 10px 18px rgba(227,106,133,.35)}
+body.theme-sunset .bellbtn:active{box-shadow:0 2px 0 #B8485F}
+body.theme-sunset .clock .hm{color:var(--violet)}
+body.theme-sunset .mini-light{background:#3A2F55}
+body.theme-sunset .tt .p{background:#F6F1F8}
+body.theme-sunset .tt .p:hover:not(.now){background:var(--violet-soft)}
+body.theme-sunset .tt .p.now{background:var(--grad);color:#fff;box-shadow:0 6px 14px rgba(95,75,139,.35)}
+body.theme-sunset .tt .p.now small{color:#E9DDF5}
+body.theme-sunset .tt .p.next{outline-color:var(--coral2)}
+body.theme-sunset .tt .p.pin{background:linear-gradient(100deg,#E36A85,#FF8F70);box-shadow:0 6px 14px rgba(227,106,133,.35)}
+body.theme-sunset .loginbtn,body.theme-sunset .btn{background:var(--violet);color:#fff}
+body.theme-sunset .btn.ghost{background:var(--violet-soft);color:var(--ink)}
+body.theme-sunset .btn.danger,body.theme-sunset .btn.alarm{background:#E5484D;color:#fff}
+body.theme-sunset .avatar{background:var(--grad)}
+body.theme-sunset .save.ok{background:var(--violet-soft);color:var(--violet)}
+body.theme-sunset .save.ok .d{background:var(--violet)}
+body.theme-sunset .save.guest{background:var(--plum-soft);color:var(--plum)}
+body.theme-sunset .guestbar{background:var(--grad)}
+body.theme-sunset .timemove{border-color:var(--line)}
+
+/* ---------- 수업 화면 ---------- */
+body.theme-sunset .band{background:var(--grad)}
+body.theme-sunset .band.soon{background:linear-gradient(100deg,#FFC261,#F9F871);color:var(--ink)}
+body.theme-sunset .band.pinned{background:linear-gradient(100deg,#E36A85,#FF8F70)}
+body.theme-sunset .band .unpin{color:var(--rose)}
+body.theme-sunset .subject{color:var(--violet)}
+body.theme-sunset .mode-soon .subject{color:#9A5B00}
+body.theme-sunset .chip{background:var(--marigold-soft);color:var(--ink)}
+body.theme-sunset .chip:nth-child(3n+2){background:var(--rose-soft)}
+body.theme-sunset .chip:nth-child(3n){background:var(--violet-soft)}
+body.theme-sunset .mode-soon .chip{background:var(--lemon-soft)}
+body.theme-sunset .morning .first{color:var(--violet)}
+body.theme-sunset .morning .hello{color:var(--plum)}
+body.theme-sunset .mode-break .stage{background:linear-gradient(160deg,#FFF8EC,#FFE9E1)}
+body.theme-sunset .brk-title{color:var(--rose)}
+body.theme-sunset .brk-time{color:var(--violet)}
+body.theme-sunset .brk.t-num .brk-time{color:var(--coral2)}
+body.theme-sunset .next{box-shadow:0 6px 18px rgba(227,106,133,.18)}
+body.theme-sunset .next .chip{background:var(--coral-soft)}
+body.theme-sunset .next .chip svg{color:var(--rose)}
+body.theme-sunset .mode-end .stage{background:linear-gradient(160deg,#FFFBE3,#FDE8ED 60%,#EEE9F6)}
+body.theme-sunset .done .t{background:linear-gradient(100deg,#5F4B8B,#A95691 35%,#E36A85 65%,#FF8F70);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-sunset .done .stars{color:var(--marigold)}
+body.theme-sunset .done .stars svg{fill:#FFC261;stroke:#FF8F70}
+body.theme-sunset .lesson.special.am .sp-left{background:var(--violet-soft)}
+body.theme-sunset .lesson.special.am .sp-left b{color:var(--violet)}
+body.theme-sunset .lesson.special.lunch .sp-left{background:var(--marigold-soft)}
+body.theme-sunset .lesson.special.lunch .sp-left b{color:#D2771E}
+body.theme-sunset .wb-toggle.on{color:var(--violet)}
+body.theme-sunset #stage > .wb-toggle:first-child{background:var(--violet)}
+body.theme-sunset #stage > .wb-toggle:first-child.on{background:#fff;color:var(--violet);border-color:var(--violet)}
+body.theme-sunset .wb-left{background:var(--coral-soft)}
+body.theme-sunset .wb-left b{color:var(--rose)}
+
+/* ---------- 과제 정류장 ---------- */
+body.theme-sunset .tasks-head .cnt{background:var(--plum-soft);color:var(--plum)}
+body.theme-sunset .prog i{background:var(--grad-warm)}
+body.theme-sunset .track::before{border-top-color:#E7CFE0}
+body.theme-sunset .st .mark{border-color:var(--violet);color:var(--violet)}
+body.theme-sunset .st.fin .mark{border-color:var(--rose);color:var(--rose)}
+body.theme-sunset .st .tags{background:#FBF7FB}
+body.theme-sunset .st.fin .tags{background:var(--rose-soft)}
+body.theme-sunset .st.fin .tag,body.theme-sunset .tgrid tr.ok td.nm .tag{background:linear-gradient(100deg,#E36A85,#FF8F70);color:#fff;box-shadow:0 2px 0 #C24E69}
+body.theme-sunset .st.fin .tag small,body.theme-sunset .tgrid tr.ok td.nm .tag small{color:#FFE3DA}
+body.theme-sunset .track.day .st.pstart .mark{border-color:var(--plum);color:var(--plum)}
+body.theme-sunset .track.day .st.pstart .pt{color:var(--plum)}
+body.theme-sunset .tgrid th.pg{color:var(--plum)}
+body.theme-sunset .ck.on{background:var(--rose);border-color:var(--rose)}
+body.theme-sunset .tgrid td.fin{color:var(--rose)}
+body.theme-sunset .tag.ph::after{background:var(--coral2)}
+
+/* ---------- 위젯 바 · 창 ---------- */
+body.theme-sunset .wbar .w:hover,body.theme-sunset .wbar .w.on{background:var(--violet-soft);color:var(--violet)}
+body.theme-sunset .win-h{background:linear-gradient(100deg,#F3EDF8,#FBEAF1)}
+body.theme-sunset .win-h svg{color:var(--plum)}
+body.theme-sunset .pick-name{background:var(--plum-soft);color:var(--plum)}
+body.theme-sunset .pick-name.hit{background:var(--grad);color:#fff}
+body.theme-sunset .seg button.sel{color:var(--violet)}
+body.theme-sunset .badge{background:var(--rose)}
+body.theme-sunset .bgw .tabs button.on{background:var(--violet)}
+body.theme-sunset .toast{background:#3A2F55}
+
+/* ---------- 설정 · 기록 ---------- */
+body.theme-sunset .set-h h2,body.theme-sunset .hist-h h2{color:var(--violet)}
+body.theme-sunset .days button.sel,body.theme-sunset .studs button.sel{background:var(--violet);color:#fff}
+body.theme-sunset .prow.am{background:#F6F1FB;border-color:#DCD0EC}
+body.theme-sunset .prow.lu{background:#FFF6E3;border-color:#F6D79F}
+
+/* ---------- 판서 ---------- */
+body.theme-sunset .tb.sel{background:var(--violet);border-color:var(--violet)}
+body.theme-sunset .wb-wx .tb{background:var(--violet-soft);color:var(--violet)}
+body.theme-sunset .obj.sel{outline-color:var(--plum)}
+
+/* ---------- 시작 화면 · 역할 · 학생 ---------- */
+body.theme-sunset .land-tag{background:var(--plum-soft);color:var(--plum)}
+body.theme-sunset .land h1{color:var(--violet)}
+body.theme-sunset .land h1 em{background:var(--grad-warm);-webkit-background-clip:text;background-clip:text;color:transparent}
+body.theme-sunset .cta{background:var(--grad);box-shadow:0 6px 0 #45366A,0 14px 30px rgba(95,75,139,.35)}
+body.theme-sunset .cta:active{box-shadow:0 2px 0 #45366A}
+body.theme-sunset .mock-top .mb{background:linear-gradient(160deg,#FF8F70,#E36A85)}
+body.theme-sunset .mock-top .mt.now,body.theme-sunset .mock-band{background:var(--grad)}
+body.theme-sunset .mock-body b{color:var(--violet)}
+body.theme-sunset .mock-body span{background:var(--marigold-soft)}
+body.theme-sunset .mock-track i{border-color:var(--violet)}
+body.theme-sunset .mock-track i.f{border-color:var(--rose)}
+body.theme-sunset .feat svg{background:var(--violet-soft);color:var(--violet)}
+body.theme-sunset .feat:nth-child(3n+2) svg{background:var(--rose-soft);color:var(--rose)}
+body.theme-sunset .feat:nth-child(3n) svg{background:var(--marigold-soft);color:#C77A12}
+body.theme-sunset .role:hover,body.theme-sunset .role.pre{border-color:var(--violet)}
+body.theme-sunset .role svg{background:var(--violet-soft);color:var(--violet)}
+body.theme-sunset .role[data-role=student] svg{background:var(--coral-soft);color:var(--rose)}
+body.theme-sunset .role[data-role=guest] svg{background:var(--marigold-soft);color:#C77A12}
+body.theme-sunset .stu-h{background:var(--grad)}
+body.theme-sunset .bigbtn{background:var(--violet);box-shadow:0 6px 0 #45366A}
+body.theme-sunset .bigbtn.go{background:linear-gradient(100deg,#E36A85,#FF8F70);box-shadow:0 6px 0 #C24E69}
+body.theme-sunset .pill-b{background:var(--violet-soft);color:var(--violet)}
+body.theme-sunset .pill-b.brk{background:var(--coral-soft);color:#C2502E}
+body.theme-sunset .pill-b.ok{background:var(--rose-soft);color:var(--rose)}
+body.theme-sunset .vst.cur .mark{border-color:var(--violet);color:var(--violet);box-shadow:0 0 0 6px rgba(95,75,139,.16)}
+body.theme-sunset .vst.cur .lbl{color:var(--violet)}
+body.theme-sunset .vst.done .mark,body.theme-sunset .pk.on i{background:var(--rose);border-color:var(--rose)}
+body.theme-sunset .pk.on{border-color:var(--rose);background:var(--rose-soft)}
+body.theme-sunset .stu-task.ok h3{color:var(--rose)}
+body.theme-sunset .ptabs button.sel{background:var(--violet)}
+body.theme-sunset .ptabs button.ok{background:var(--rose-soft);color:var(--rose)}
+body.theme-sunset .bub.s{background:var(--violet)}
+body.theme-sunset .bub.t{background:var(--marigold-soft)}
+
+/* ---------- 스크롤바 ---------- */
+body.theme-sunset *{scrollbar-color:#D9C7E3 transparent}
+body.theme-sunset ::-webkit-scrollbar-thumb{background:#D9C7E3;background-clip:padding-box}
+body.theme-sunset .dbg,body.theme-sunset .dbg *{scrollbar-color:#4A5470 transparent}

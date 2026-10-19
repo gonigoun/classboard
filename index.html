@@ -9,8 +9,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/board.css">
+<link rel="stylesheet" href="css/sunset.css">
 </head>
-<body>
+<body class="theme-sunset">
 <div id="bg" class="pat"></div><div id="bgDim"></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
 <defs>
@@ -78,7 +79,7 @@
     </div>
     <div class="land-feats">
       <div class="feat"><svg class="i"><use href="#i-clock"/></svg><b>시계·시간표</b><span>수업 중·2분 전·쉬는 시간에 맞춰 화면이 바뀌어요</span></div>
-      <div class="feat"><svg class="i"><use href="#i-pen"/></svg><b>판서</b><span>펜·형광펜·글자·사진 붙여 넣기</span></div>
+      <div class="feat"><svg class="i"><use href="#i-pen"/></svg><b>판서</b><span>펜·글자·네온 음영·사진 붙여 넣기</span></div>
       <div class="feat"><svg class="i"><use href="#i-tasks"/></svg><b>과제 현황</b><span>순서대로 정류장 또는 골라서 체크</span></div>
       <div class="feat"><svg class="i"><use href="#i-phone"/></svg><b>학생 폰 연결</b><span>학생이 스스로 체크하고 메시지를 보내요</span></div>
       <div class="feat"><svg class="i"><use href="#i-mic"/></svg><b>소음·신호등</b><span>교실 소리에 따라 신호등이 바뀌어요</span></div>
@@ -95,7 +96,7 @@
     <p class="hint" data-r="who"></p>
     <div class="roles">
       <button class="role" data-role="teacher"><svg class="i"><use href="#i-school"/></svg><b>선생님</b><span>Google로 로그인 → 허용된 선생님은 바로 보드로, 처음이면 권한을 요청해요</span></button>
-      <button class="role" data-role="student"><svg class="i"><use href="#i-kid"/></svg><b>학생</b><span>Google로 로그인 → 학급 코드와 번호·이름을 넣으면 바로 들어가요</span></button>
+      <button class="role" data-role="student"><svg class="i"><use href="#i-kid"/></svg><b>학생</b><span>Google로 로그인 → 학급 코드와 이름을 넣으면 바로 들어가요</span></button>
       <button class="role" data-role="guest"><svg class="i"><use href="#i-guest"/></svg><b>게스트</b><span>로그인 없이 모든 기능을 둘러봐요 (저장은 안 돼요)</span></button>
     </div>
   </div>
