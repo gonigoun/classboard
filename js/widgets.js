@@ -262,7 +262,8 @@ export function openTimer() {
         <label><input type="number" min="0" max="59" data-u="m" value="${c.timer.m}"><span>분</span></label>
         <label><input type="number" min="0" max="59" data-u="s" value="${c.timer.s}"><span>초</span></label>
       </div>
-      <div class="row tmr-pre">${[[30, '30초'], [60, '1분'], [180, '3분'], [300, '5분'], [600, '10분']].map(([v, n]) => `<button class="btn ghost" data-p="${v}">${n}</button>`).join('')}</div>
+      <div class="row tmr-pre" data-r="pre">${[[30, '30초'], [60, '1분'], [180, '3분'], [300, '5분'], [600, '10분']].map(([v, n]) => `<button class="btn ghost" data-p="${v}">${n}</button>`).join('')}</div>
+      <div class="row tmr-adj" data-r="adj" hidden>${[[-60, '−1분'], [-30, '−30초'], [30, '+30초'], [60, '+1분'], [300, '+5분']].map(([v, n]) => `<button class="btn ghost ${v < 0 ? 'minus' : ''}" data-adj="${v}">${n}</button>`).join('')}</div>
       <div class="row"><button class="btn" data-a="go">시작</button><button class="btn ghost" data-a="reset">다시</button><span class="sp"></span>
         <div class="seg sm">${[['hour', '모래시계'], ['pie', '부채꼴'], ['num', '숫자만']].map(([k, n]) => `<button data-t="${k}" class="${c.timer.type === k ? 'sel' : ''}">${n}</button>`).join('')}</div></div>
       <label class="chk">끝날 때 소리 <select data-r="bell">${BELLS.map((b, i) => `<option value="${i}" ${i === c.timer.bell ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select><button class="btn ghost" data-a="test">들어 보기</button></label>
@@ -279,6 +280,9 @@ function bindTimer(w) {
     q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
     a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
     q('set').classList.toggle('lock', T.running);
+    // 진행 중(멈춤·끝 포함)에는 '시간 더하기·빼기' 버튼, 처음에는 시간 고르기 버튼
+    const busy = T.running || (T.total && T.left < T.total);
+    q('pre').hidden = !!busy; q('adj').hidden = !busy;
   };
   const loop = () => {
     if (!T || !T.running) return;
@@ -301,6 +305,25 @@ function bindTimer(w) {
   q('bell').onchange = () => { c.timer.bell = +q('bell').value; ctx.save(); };
   a('test').onclick = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
   a('reset').onclick = reset;
+  // 진행 중에 시간 더하기·빼기: 남은 시간과 전체 시간을 같이 바꿔서 모래시계·부채꼴 양도 따라 바뀜
+  w.querySelectorAll('[data-adj]').forEach((b) => {
+    b.onclick = () => {
+      const v = +b.dataset.adj;
+      if (T.total && T.left <= 0) { // 끝난 뒤 더하면 그 시간만큼 다시 시작
+        if (v <= 0) return;
+        clearInterval(T.ringing); T.total = T.left = v;
+        T.running = true; T.endAt = performance.now() + v * 1000; clearInterval(T.raf); T.raf = setInterval(loop, 200); loop(); return;
+      }
+      const left = T.running ? Math.max(0, (T.endAt - performance.now()) / 1000) : T.left;
+      const nl = Math.max(1, left + v);
+      if (v < 0 && left <= 1) return;
+      T.total = Math.max(nl, T.total + (nl - left));
+      T.left = nl;
+      if (T.running) T.endAt = performance.now() + nl * 1000;
+      b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump');
+      draw();
+    };
+  });
   a('go').onclick = () => {
     if (T.total && T.left <= 0) { clearInterval(T.ringing); reset(); return; }
     if (T.running) { T.running = false; clearInterval(T.raf); draw(); return; }

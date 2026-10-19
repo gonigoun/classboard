@@ -6,6 +6,7 @@ export const ic = (id) => `<svg class="i"><use href="#i-${id}"/></svg>`;
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function toast(t, ms = 2600) {
+  document.querySelectorAll('.toast').forEach((x) => x.remove()); // 안내가 겹쳐 보이지 않게 새 안내만
   const e = document.createElement('div'); e.className = 'toast'; e.textContent = t;
   document.body.appendChild(e); setTimeout(() => e.remove(), ms);
 }

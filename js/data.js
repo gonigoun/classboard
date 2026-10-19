@@ -13,19 +13,25 @@ const ORDER = { 1: ['국어', '수학', '사회', '과학'], 2: ['수학', '국�
 
 export const SAMPLE_ROSTER = ['김하늘', '이서준', '박도윤', '최지우', '정예린', '강민준', '조하은', '윤시우', '장서연', '임주원'];
 
+/** 1교시 전 아침 시간 (과제·판서를 쓸 수 있는 칸) */
+export function morningPeriod(start = '08:40', end = '09:00', tasks = []) {
+  return { name: '아침 시간', morning: true, start, end, subject: '아침 활동', items: [], tasks };
+}
+export const isMorning = (p) => !!(p && p.morning);
+
 export function samplePeriods(weekday) {
   const order = ORDER[weekday] || ORDER[1];
-  return order.map((sub, i) => ({
+  return [morningPeriod('08:40', '09:00', ['아침 독서', '알림장 쓰기']), ...order.map((sub, i) => ({
     name: `${i + 1}교시`, start: TIMES[i][0], end: TIMES[i][1], subject: sub,
     items: [...SUBJECTS[sub].items], tasks: [...SUBJECTS[sub].tasks],
-  }));
+  }))];
 }
 
 export function sampleConfig() {
   const weekTables = {};
   for (let d = 1; d <= 5; d++) weekTables[d] = samplePeriods(d);
   return {
-    version: 1,
+    version: 2,
     weekTables,
     roster: [...SAMPLE_ROSTER],
     sound: { bell: 0, volume: 0.8, on: true, auto: true, custom: [] },
@@ -51,6 +57,18 @@ export function normalizeConfig(c) {
   out.wins = { ...(c.wins || {}) };
   out.weekTables = { ...base.weekTables, ...(c.weekTables || {}) };
   out.roster = Array.isArray(c.roster) ? c.roster : base.roster;
+  // 2판: 요일 시간표 맨 앞에 '아침 시간' 칸을 한 번 넣어 줌 (지우면 다시 생기지 않음)
+  if (!(c.version >= 2)) {
+    for (let d = 1; d <= 5; d++) {
+      const t = out.weekTables[d];
+      if (!Array.isArray(t) || !t.length || t.some(isMorning)) continue;
+      const first = [...t].sort((a, b) => toSec(a.start) - toSec(b.start))[0];
+      const end = toSec(first.start) >= toSec('09:00') ? '09:00' : first.start;
+      const st = toSec(end) - 20 * 60, hm = `${String(Math.floor(st / 3600)).padStart(2, '0')}:${String(Math.floor(st / 60) % 60).padStart(2, '0')}`;
+      out.weekTables[d] = [morningPeriod(hm, end), ...t];
+    }
+    out.version = 2;
+  }
   return out;
 }
 

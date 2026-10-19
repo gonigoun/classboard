@@ -3,8 +3,17 @@ import { ic } from './ui.js';
 
 const PEN = ['#1E2433', '#E5484D', '#2B6CE6', '#22A86B', '#7B5CFA', '#FF8A00'];
 const PASTEL = ['#FFF176', '#FFCCBC', '#C8E6C9', '#B3E5FC', '#E1BEE7', '#F8BBD0'];
-const WB = { tool: 'pen', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, erase: { w: 40 }, txt: { size: 48, bold: false, c: PEN[0] }, strokes: [], hist: [], sel: null };
-let wbEl = null;
+const WB = { tool: 'pen', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, erase: { w: 40 }, txt: { size: 140, bold: false, c: PEN[0] }, strokes: [], hist: [], sel: null };
+let wbEl = null, wbWidgets = [];
+const TXT_SIZES = [24, 32, 48, 64, 80, 100, 140, 180, 240];
+
+/** 크게 보기일 때 판서 막대에 띄울 위젯 버튼: [[아이콘, 이름, 여는 함수], …] */
+export function setWbWidgets(list) { wbWidgets = list || []; if (wbEl) drawWbWidgets(); }
+function drawWbWidgets() {
+  const g = wbEl.querySelector('[data-r="wx"]');
+  g.innerHTML = wbWidgets.map(([i, l], k) => `<button class="tb" data-wx="${k}" title="${l}">${ic(i)}${l}</button>`).join('');
+  g.querySelectorAll('[data-wx]').forEach((b) => { b.onclick = () => wbWidgets[+b.dataset.wx][2](); });
+}
 
 export function getWB(headHTML) {
   if (!wbEl) buildWB();
@@ -27,6 +36,7 @@ function buildWB() {
        <button class="tb" data-r="full">${ic('full')}<span>크게 보기</span></button>
        <input type="file" data-r="file" accept="image/*" hidden>
      </div>
+     <div class="grp wb-wx" data-r="wx"></div>
    </div>
    <div class="wb-canvas">
      <div class="wb-objs"></div><canvas class="base"></canvas><canvas class="live"></canvas>
@@ -164,13 +174,19 @@ function buildWB() {
     if (t === 'pen') h = sw(PEN, WB.pen.c) + sz([2, 4, 8, 14], WB.pen.w, WB.pen.c);
     else if (t === 'hl') h = sw(PASTEL, WB.hl.c) + sz([16, 28, 44], WB.hl.w, WB.hl.c);
     else if (t === 'erase') h = sz([20, 40, 80], WB.erase.w, '#C5CCDA');
-    else if (t === 'text') h = `<select data-r="txSize" title="글자 크기">${[24, 32, 48, 64, 80, 100, 140].map((s) => `<option value="${s}" ${s === WB.txt.size ? 'selected' : ''}>${s}</option>`).join('')}</select>
+    else if (t === 'text') h = `<label class="txsz" title="글자 크기: 직접 적거나 목록에서 골라요"><input type="number" data-r="txSize" min="10" max="400" step="1" list="wbTxSizes" value="${WB.txt.size}"><datalist id="wbTxSizes">${TXT_SIZES.map((s) => `<option value="${s}">`).join('')}</datalist></label>
         <button class="tb ${WB.txt.bold ? 'sel' : ''}" data-r="txBold" style="font-weight:900">굵게</button>` + sw(PEN, WB.txt.c);
     else h = '<span class="hint">그림·글자를 끌어 옮기고, 모서리 네모를 끌어 크기를 바꿔요</span>';
     box.innerHTML = h;
     box.querySelectorAll('[data-c]').forEach((s) => { s.onpointerdown = (e) => { e.preventDefault(); (t === 'text' ? WB.txt : WB[t]).c = s.dataset.c; if (t === 'text') applySel(); renderOpts(); }; });
     box.querySelectorAll('[data-w]').forEach((s) => { s.onclick = () => { WB[t].w = +s.dataset.w; renderOpts(); }; });
-    const ts = box.querySelector('[data-r="txSize"]'); if (ts) ts.onchange = () => { WB.txt.size = +ts.value; applySel(); };
+    const ts = box.querySelector('[data-r="txSize"]');
+    if (ts) {
+      const setSize = (fix) => { const v = Math.round(+ts.value); if (!v) return; const c = Math.max(10, Math.min(400, v)); WB.txt.size = c; if (fix) ts.value = c; applySel(); };
+      ts.oninput = () => setSize(false);
+      ts.onchange = () => setSize(true);
+      ts.onkeydown = (e) => { if (e.key === 'Enter') { setSize(true); ts.blur(); } e.stopPropagation(); };
+    }
     const tb = box.querySelector('[data-r="txBold"]'); if (tb) tb.onpointerdown = (e) => { e.preventDefault(); WB.txt.bold = !WB.txt.bold; applySel(); renderOpts(); };
   }
   wbEl.querySelectorAll('[data-tool]').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
@@ -188,6 +204,7 @@ function buildWB() {
   area.addEventListener('dragover', (e) => e.preventDefault());
   area.addEventListener('drop', (e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith('image/')); if (f) addImage(URL.createObjectURL(f)); });
   WB.del = () => { if (WB.sel) { WB.sel.remove(); select(null); } };
+  drawWbWidgets();
   setTool('pen');
 }
 

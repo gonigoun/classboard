@@ -1,6 +1,6 @@
 // 설정 창: 요일별 시간표 · 오늘만 바꾸기 · 학생 명단 · 소리 · 초기화
 import { ic, esc, toast, confirmBox } from './ui.js';
-import { WEEKDAYS, clone, sampleConfig, toSec } from './data.js';
+import { WEEKDAYS, clone, sampleConfig, toSec, morningPeriod, isMorning } from './data.js';
 import { BELLS, ringBell, setVolume } from './sound.js';
 
 let ctx = null; // { cfg(), day(), todayWd(), saveCfg(), saveDay(), applyAll(), guest(), resetAll() }
@@ -32,10 +32,12 @@ async function close() {
 
 function draw() {
   const box = modal.querySelector('.set');
+  // 다시 그려도 보던 자리(스크롤)가 그대로 있게
+  const oldB = box.querySelector('.set-b'), keep = oldB && oldB.dataset.tab === tab ? oldB.scrollTop : 0;
   const tabs = [['table', '시간표·과제'], ['roster', '학생 명단'], ['sound', '소리'], ['reset', '초기화'], ...(ctx.isAdmin() ? [['allow', '허용할 선생님']] : [])];
   box.innerHTML = `<div class="set-h"><h2>설정</h2><div class="seg">${tabs.map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'sel' : ''}">${n}</button>`).join('')}</div><button class="x" data-a="close">${ic('x')}</button></div>
-    <div class="set-b">${tab === 'table' ? tableBody() : tab === 'roster' ? rosterBody() : tab === 'sound' ? soundBody() : tab === 'allow' ? allowBody() : resetBody()}</div>
-    ${tab === 'table' ? `<div class="set-f"><button class="btn ghost" data-a="addp">${ic('cal')} 교시 추가</button><span class="sp"></span>
+    <div class="set-b" data-tab="${tab}">${tab === 'table' ? tableBody() : tab === 'roster' ? rosterBody() : tab === 'sound' ? soundBody() : tab === 'allow' ? allowBody() : resetBody()}</div>
+    ${tab === 'table' ? `<div class="set-f"><button class="btn ghost" data-a="addp">${ic('cal')} 교시 추가</button>${draft.some(isMorning) ? '' : `<button class="btn ghost" data-a="addam">${ic('sunny')} 아침 시간 추가</button>`}<span class="sp"></span>
        ${ctx.guest() ? '<span class="hint">게스트 모드에서는 저장되지 않아요</span>' : ''}<button class="btn" data-a="savet">저장</button></div>` : ''}`;
   box.querySelector('[data-a=close]').onclick = close;
   box.querySelectorAll('.seg [data-t]').forEach((b) => {
@@ -44,6 +46,7 @@ function draw() {
       dirty = false; tab = b.dataset.t; loadDraft(); draw();
     };
   });
+  box.querySelector('.set-b').scrollTop = keep;
   if (tab === 'table') bindTable(box);
   if (tab === 'roster') bindRoster(box);
   if (tab === 'sound') bindSound(box);
@@ -67,13 +70,23 @@ function listUI(arr, kind, i) {
       <button class="mini" data-mv="-1" data-k="${k}" title="위로">${ic('up')}</button><button class="mini rm" data-del="${k}" title="삭제">${ic('x')}</button></div>`).join('')}
     <button class="addbtn" data-add="1">+ ${kind === 'tasks' ? '과제 추가' : '준비물 추가'}</button></div>`;
 }
+/** 시·분 고르기 (분은 5분 단위, 이미 다른 값이면 그 값도 목록에 남김) */
+function timeSel(f, v) {
+  const [h, m] = String(v || '09:00').split(':').map(Number);
+  const hs = []; for (let x = 6; x <= 18; x++) hs.push(x); if (!hs.includes(h)) hs.push(h);
+  const ms = []; for (let x = 0; x < 60; x += 5) ms.push(x); if (!ms.includes(m)) ms.push(m);
+  const o = (arr, cur, suf) => arr.sort((a, b) => a - b).map((x) => `<option value="${x}" ${x === cur ? 'selected' : ''}>${String(x).padStart(2, '0')}${suf}</option>`).join('');
+  return `<span class="tsel" data-tf="${f}"><select data-part="h" aria-label="시">${o(hs, h, '시')}</select><b>:</b><select data-part="m" aria-label="분">${o(ms, m, '분')}</select></span>`;
+}
 function periodRow(p, i) {
-  return `<div class="prow" data-i="${i}"><div class="top">
+  const am = isMorning(p);
+  return `<div class="prow ${am ? 'am' : ''}" data-i="${i}"><div class="top">
       <label>이름<input type="text" data-f="name" value="${esc(p.name)}"></label>
-      <label>시작<input type="time" data-f="start" value="${esc(p.start)}"></label>
-      <label>끝<input type="time" data-f="end" value="${esc(p.end)}"></label>
-      <label>과목<input type="text" data-f="subject" value="${esc(p.subject)}"></label>
-      <button class="mini rm" data-delp="${i}" title="교시 삭제">${ic('trash')}</button></div>
+      <label>시작${timeSel('start', p.start)}</label>
+      <label>끝${timeSel('end', p.end)}</label>
+      <label>${am ? '활동' : '과목'}<input type="text" data-f="subject" value="${esc(p.subject)}"></label>
+      <button class="mini rm" data-delp="${i}" title="${am ? '아침 시간 삭제' : '교시 삭제'}">${ic('trash')}</button></div>
+    ${am ? '<p class="note">아침 시간: 1교시 전 시간이에요. 과제 현황과 판서를 쓸 수 있고, 시작할 때 종은 울리지 않아요.</p>' : ''}
     <div class="lists"><div><label>교과서·준비물</label>${listUI(p.items || [], 'items', i)}</div><div><label>과제</label>
       <div class="mode row"><select data-f="mode"><option value="seq" ${p.mode !== 'pick' ? 'selected' : ''}>순서대로 (정류장)</option><option value="pick" ${p.mode === 'pick' ? 'selected' : ''}>골라서 하기</option></select>
         ${p.mode === 'pick' ? `<label class="need">완료 기준 <input type="number" min="1" max="${Math.max(1, (p.tasks || []).length)}" data-f="need" value="${esc(p.need || (p.tasks || []).length || 1)}">개</label>` : ''}</div>
@@ -92,6 +105,10 @@ function bindTable(box) {
     row.querySelectorAll('[data-f]').forEach((inp) => {
       inp.oninput = () => { draft[i][inp.dataset.f] = inp.dataset.f === 'need' ? Math.max(1, +inp.value || 1) : inp.value; mark(); if (inp.dataset.f === 'mode') draw(); };
     });
+    row.querySelectorAll('[data-tf]').forEach((ts) => {
+      const sel = (k) => ts.querySelector(`[data-part=${k}]`);
+      ts.querySelectorAll('select').forEach((x) => { x.onchange = () => { draft[i][ts.dataset.tf] = `${String(sel('h').value).padStart(2, '0')}:${String(sel('m').value).padStart(2, '0')}`; mark(); }; });
+    });
     row.querySelector('[data-delp]').onclick = () => { draft.splice(i, 1); mark(); draw(); };
     row.querySelectorAll('.tlist').forEach((tl) => {
       const kind = tl.dataset.list, arr = draft[i][kind] = draft[i][kind] || [];
@@ -101,13 +118,21 @@ function bindTable(box) {
       tl.querySelector('[data-add]').onclick = () => { arr.push(''); mark(); draw(); const ins = modal.querySelectorAll(`.prow[data-i="${i}"] .tlist[data-list="${kind}"] input`); ins[ins.length - 1].focus(); };
     });
   });
+  const fmt = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
   box.querySelector('[data-a=addp]').onclick = () => {
     const last = draft[draft.length - 1];
-    const fmt = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
-    const st = last ? toSec(last.end) + 600 : 9 * 3600;
-    draft.push({ name: `${draft.length + 1}교시`, start: fmt(st), end: fmt(st + 2400), subject: '', items: [], tasks: [] });
-    mark(); draw();
-    const b = modal.querySelector('.set-b'); b.scrollTop = b.scrollHeight;
+    const st = last ? Math.ceil((toSec(last.end) + 600) / 300) * 300 : 9 * 3600;
+    draft.push({ name: `${draft.filter((p) => !isMorning(p)).length + 1}교시`, start: fmt(st), end: fmt(st + 2400), subject: '', items: [], tasks: [] });
+    mark(); draw(); // 보던 자리는 그대로, 새 교시는 맨 아래에 생겨요
+    const rows = modal.querySelectorAll('.prow'); rows[rows.length - 1].classList.add('new');
+    toast(`${draft[draft.length - 1].name}를 맨 아래에 추가했어요`);
+  };
+  const am = box.querySelector('[data-a=addam]');
+  if (am) am.onclick = () => {
+    const first = [...draft].sort((a, b) => toSec(a.start) - toSec(b.start))[0];
+    const end = first ? Math.min(toSec(first.start), 9 * 3600) : 9 * 3600;
+    draft.unshift(morningPeriod(fmt(end - 1200), fmt(end))); mark();
+    draw(); modal.querySelector('.set-b').scrollTop = 0;
   };
   box.querySelector('[data-a=savet]').onclick = () => {
     const bad = draft.find((p) => !p.start || !p.end || toSec(p.end) <= toSec(p.start));

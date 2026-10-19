@@ -1,9 +1,9 @@
 // 선생님 보드 (게스트 모드 포함): 시계·수업 화면·과제 정류장·위젯 바
 import { $, $$, ic, esc, toast, confetti, confirmBox, setWinStore, closeWin, timerSvg } from './ui.js';
-import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpTargets, mmss } from './data.js';
+import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpTargets, mmss, isMorning } from './data.js';
 import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
 import * as store from './store.js';
-import { getWB, fitWB, setWbFull, wbIsFull } from './whiteboard.js';
+import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets } from './whiteboard.js';
 import { initWidgets, applyBg, openBg, openPick, openNoise, openLight, openTimer } from './widgets.js';
 import { initSettings, openSettings } from './settings.js';
 import { openHistory } from './history.js';
@@ -74,7 +74,12 @@ async function loadToday() {
   let day = null;
   if (!guest()) { try { day = await store.loadDay(S.user.uid, key); } catch (e) { /* 오프라인: 아래에서 새로 만듦 */ } }
   if (!day) day = { table: clone(S.cfg.weekTables[wd] || []), custom: false };
-  else if (!day.custom) day.table = clone(S.cfg.weekTables[wd] || []); // '오늘만 바꾸기'를 안 했으면 요일 기본 시간표를 따라감
+  else if (!day.custom) { // '오늘만 바꾸기'를 안 했으면 요일 기본 시간표를 따라감
+    const wt = S.cfg.weekTables[wd] || [];
+    // 아침 시간이 새로 생긴 날: 이미 체크한 기록이 어긋나지 않게 오늘은 저장된 시간표를 그대로 씀 (내일부터 아침 시간이 나와요)
+    const keepToday = (day.table || []).length && !day.table.some(isMorning) && wt.some(isMorning);
+    if (!keepToday) day.table = clone(wt);
+  }
   S.day = day; S.marks = {}; S.phaseKey = '';
   // 예전 형식(그날 기록에 진행 상황을 바로 담던 방식)도 읽어 줌
   if (day.progress && !guest()) Object.entries(day.progress).forEach(([pi, arr]) => (arr || []).forEach((v, k) => { if (v) { const m = markOf(k); m.p[pi] = v; S.marks[String(k + 1)] = m; } }));
@@ -178,7 +183,7 @@ function drawStage() {
   } else if (ph.kind === 'end') {
     h = `<div class="stage-body"><div class="done pop"><div class="stars">${ic('star')}${ic('star')}${ic('star')}</div><div class="t">오늘 수업 끝!</div></div></div>`;
   } else {
-    h = `<div class="stage-body"><div class="none pop"><div class="t">오늘은 수업이 없어요</div><p class="hint" style="text-align:center">시간표는 위젯 바의 '시간표'에서 바꿀 수 있어요${guest() ? ' · 확인용 \'시간 이동\'으로 평일 화면을 볼 수 있어요' : ''}</p></div></div>`;
+    h = `<div class="stage-body"><div class="none pop"><div class="t">오늘은 수업이 없어요</div><p class="hint" style="text-align:center">시간표는 위젯 바의 '설정'에서 바꿀 수 있어요${guest() ? ' · 확인용 \'시간 이동\'으로 평일 화면을 볼 수 있어요' : ''}</p></div></div>`;
   }
   st.innerHTML = h;
   const wbb = st.querySelector('[data-a=wb]');
@@ -338,7 +343,9 @@ function tick() {
   if (key !== S.phaseKey) {
     const first = !S.phaseKey;
     S.phaseKey = key;
-    if (!first && S.cfg.sound.on && S.cfg.sound.auto && !S.jumping) {
+    // 아침 시간이 시작될 때는 종을 울리지 않음 (등교 시간이라서)
+    const toMorning = isMorning(table()[S.phase.cur ?? S.phase.next]);
+    if (!first && S.cfg.sound.on && S.cfg.sound.auto && !S.jumping && !toMorning) {
       if (S.phase.kind === 'class') FX.classStart();
       else if (S.phase.kind === 'soon') FX.soon();
       else if (S.phase.kind === 'break' && prev.kind === 'class') FX.breakStart();
@@ -369,7 +376,7 @@ const actions = {
   bg: openBg, pick: openPick, noise: openNoise, light: openLight, timer: openTimer,
   tasks: () => { S.cfg.showTasks = !S.cfg.showTasks; saveCfg(); drawTasks(); drawBar(); if (S.cfg.showTasks && !tasksVisible()) toast('과제 현황은 수업 중과 모든 수업이 끝난 뒤에 보여요'); },
   students: openStudents, msg: openMessages,
-  tt: () => openSettings('table'),
+  set: () => openSettings('table'),
   sound: () => { S.cfg.sound.on = !S.cfg.sound.on; saveCfg(); drawBar(); },
   wake: () => { S.cfg.wakeLock = !S.cfg.wakeLock; saveCfg(); drawBar(); wake(); },
   full: () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else document.documentElement.requestFullscreen().catch(() => toast('이 브라우저는 전체 화면을 지원하지 않아요')); wake(); },
@@ -419,7 +426,7 @@ export async function startBoard(user) {
     try { cfg = await store.loadConfig(user.uid); } catch (e) { const c = readCache(); cfg = c && c.uid === user.uid ? c.cfg : null; }
     const first = !cfg;
     S.cfg = normalizeConfig(cfg);
-    if (first) { saveCfg(); toast('처음 로그인했어요. 예시 시간표로 시작해요. 위젯 바의 \'시간표\'에서 바꿔 주세요', 4500); }
+    if (first) { saveCfg(); toast('처음 로그인했어요. 예시 시간표로 시작해요. 위젯 바의 \'설정\'에서 바꿔 주세요', 4500); }
     if (S.cfg.bg.kind === 'photo') { try { S.bgImage = await store.loadBgImage(user.uid); } catch (e) { S.bgImage = null; } }
     store.purgeBefore(user.uid, semesterStart(now())).catch(() => {});
   } else {
@@ -453,6 +460,8 @@ export async function startBoard(user) {
     user: () => S.user, cfg: () => S.cfg, saveCfg, roster, soundOn,
     onChange: () => { drawBar(); drawTasks(); },
   });
+  // 판서를 크게 볼 때도 판서 위쪽 막대에서 위젯을 바로 열 수 있게
+  setWbWidgets([['clock', '타이머', openTimer], ['dice', '이름 뽑기', openPick], ['mic', '소음', openNoise], ['light', '신호등', openLight]]);
   if (user) {
     onSeats((seats) => { S.seats = seats; drawTasks(); });
     onMsgs(() => drawBar());

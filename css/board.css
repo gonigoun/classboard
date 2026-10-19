@@ -35,7 +35,7 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
 
 /* 위쪽 막대 */
 .topbar{display:flex;align-items:center;gap:18px;padding:10px 16px;position:relative;z-index:30}
-.bellbox{display:flex;flex-direction:column;align-items:center;gap:4px}
+.bellbox{display:flex;flex-direction:column;align-items:center;gap:14px}
 .bellbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:84px;height:72px;border-radius:18px;background:linear-gradient(160deg,#9A7BFF,var(--purple));color:#fff;box-shadow:0 6px 0 #5B3FD6,0 10px 18px rgba(91,63,214,.35);transition:transform .1s}
 .bellbtn:active{transform:translateY(4px);box-shadow:0 2px 0 #5B3FD6}
 .bellbtn svg{font-size:32px;transform-origin:50% 10%}
@@ -97,7 +97,7 @@ body.wb-full .stage{backdrop-filter:none;-webkit-backdrop-filter:none}
 .wb-head .chip{font-size:22px;padding:6px 14px;border-radius:12px}
 .wb-bar{display:flex;align-items:center;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line);background:#FAFBFD;flex-wrap:wrap}
 .wb-bar .grp{display:flex;gap:5px;align-items:center;padding-right:10px;margin-right:4px;border-right:2px solid var(--line);flex-wrap:wrap}
-.wb-bar .grp:last-child{border:0;margin-left:auto;padding-right:0}
+.wb-bar .grp:nth-child(3){border:0;margin-left:auto;padding-right:0}
 .tb{height:42px;min-width:42px;padding:0 11px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:6px;background:#fff;border:1px solid var(--line);font-size:14px;font-weight:700}
 .tb svg{font-size:20px}
 .tb.sel{background:var(--blue);color:#fff;border-color:var(--blue)}
@@ -318,9 +318,9 @@ table.rec td.n{text-align:left;font-weight:700;white-space:nowrap}
 .rate b{display:block;font-size:24px;color:var(--ink)}
 .hist-f{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 @media (max-width:760px){.hist-grid{grid-template-columns:1fr}.hist{padding:16px}}
-.confetti{position:fixed;top:-20px;width:10px;height:14px;z-index:50;pointer-events:none;animation:fall linear forwards}
+.confetti{position:fixed;top:-20px;width:10px;height:14px;z-index:150;pointer-events:none;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
-.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:60;background:#1E2433;color:#fff;padding:10px 18px;border-radius:12px;font-size:14px;animation:pop .3s}
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:260;background:#1E2433;color:#fff;padding:10px 18px;border-radius:12px;font-size:14px;animation:pop .3s}
 
 @media (max-width:760px){
   #app{height:auto;min-height:100vh;padding:10px 10px 96px}
@@ -371,7 +371,7 @@ table.rec td.n{text-align:left;font-weight:700;white-space:nowrap}
 .days button.sel{background:var(--blue);color:#fff}
 .days button.today{outline:2px solid var(--sun);outline-offset:-2px}
 .prow{border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px;background:#FBFCFE}
-.prow .top{display:grid;grid-template-columns:100px 140px 140px 1fr auto;gap:8px;align-items:end}
+.prow .top{display:grid;grid-template-columns:110px 170px 170px 1fr auto;gap:8px;align-items:end}
 .prow label{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:700;color:var(--muted)}
 .prow input,.set textarea,.set select,.set input[type=text],.set input[type=url]{font:inherit;font-size:15px;padding:8px 10px;border-radius:10px;border:2px solid var(--line);background:#fff;color:var(--ink);width:100%}
 .prow .lists{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
@@ -614,3 +614,41 @@ body:not([data-view=board]) #bg{background:#EEF3FC;background-image:radial-gradi
   .mock-top .mb{writing-mode:horizontal-tb;white-space:nowrap}
   .mock-body b{font-size:44px;white-space:nowrap}.mock-body span{white-space:nowrap;font-size:16px}
 }
+
+/* 판서·과제 현황을 크게 볼 때도 위젯 창은 그 위에 */
+body.wb-full .win,body.tasks-full .win{z-index:120}
+.wb-bar .wb-wx{display:none}
+body.wb-full .wb-bar .wb-wx{display:flex;border-right:0;border-left:2px solid var(--line);padding:0 0 0 10px;margin:0 0 0 4px}
+.wb-wx .tb{background:var(--blue-soft);color:var(--blue-deep);border-color:transparent}
+/* 판서 글자 크기: 직접 적기 */
+.txsz input{height:42px;width:88px;border-radius:12px;border:1px solid var(--line);font:inherit;font-size:16px;font-weight:700;padding:0 6px 0 10px;background:#fff;color:var(--ink)}
+
+/* 과제 현황 크게 보기: 과제 글씨를 크게, 줄을 나눠서 */
+.tasks.full .track,.tasks.full .track.day{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px;padding:6px 20px 20px}
+.tasks.full .track::before{display:none}
+.tasks.full .st{background:#F6F8FC;border-radius:20px;padding:16px 14px;gap:10px;justify-content:flex-start}
+.tasks.full .st.fin{background:var(--green-soft)}
+.tasks.full .st .mark,.tasks.full .track.day .st .mark{width:56px;height:56px;border-width:6px;font-size:24px}
+.tasks.full .st .lbl,.tasks.full .track.day .lbl{font-size:clamp(30px,3.4vw,54px);line-height:1.15}
+.tasks.full .pt{font-size:clamp(16px,1.4vw,22px)}
+.tasks.full .st .tags{background:#fff}
+.tasks.full .st.fin .tags{background:rgba(255,255,255,.6)}
+.tasks.full .tag,.tasks.full .track.day .tag{font-size:15px;padding:4px 8px}
+.tasks.full .tgrid th{font-size:clamp(22px,2.4vw,36px);padding:10px 8px}
+.tasks.full .tgrid th.pg{font-size:clamp(16px,1.5vw,22px)}
+.tasks.full .tgrid td.nm .tag{font-size:15px}
+
+/* 설정: 5분 단위 시간 고르기 */
+.tsel{display:flex;align-items:center;gap:4px}
+.set .tsel select{padding:8px 4px;width:auto;flex:1;min-width:0}
+.tsel b{font-weight:900;color:var(--muted)}
+.prow.am{background:#FFF9EB;border-color:#F4DFAE}
+.prow .amtag{font-size:12px;font-weight:900;color:#B7791F;background:#FDECC8;border-radius:999px;padding:2px 10px;align-self:center}
+.prow.new{animation:newrow 1.6s ease}
+@keyframes newrow{0%,40%{box-shadow:0 0 0 4px var(--blue)}100%{box-shadow:none}}
+.tmr-adj{flex-wrap:wrap;gap:6px}
+.tmr-adj .btn{flex:1;min-width:64px;padding-left:6px;padding-right:6px;font-weight:900}
+.tmr-adj .btn.minus{color:var(--muted)}
+.tmr-adj .btn.bump{animation:bump .3s}
+@keyframes bump{50%{transform:scale(1.12)}}
+.tmr-pre[hidden],.tmr-adj[hidden]{display:none}
