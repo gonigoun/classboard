@@ -939,3 +939,8 @@ body.wb-full .wb-bar .wb-wx{display:flex;border-right:0;border-left:2px solid va
 .bgw .themes .th-sunset i{background:conic-gradient(#5F4B8B 0 17%,#A95691 0 34%,#E36A85 0 50%,#FF8F70 0 67%,#FFC261 0 84%,#F9F871 0)}
 .bgw .themes .th-classic i{background:conic-gradient(#2B6CE6 0 50%,#DCE8FB 0)}
 .bgw .themes button.sel{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue)}
+/* 과제 현황을 꺼 두었을 때: 얇은 안내 줄 */
+.tasks.off{padding:0}
+.tasks-off{display:flex;align-items:center;gap:10px;padding:8px 16px;font-size:15px;color:var(--muted)}
+.tasks-off svg{font-size:20px;color:var(--blue)}
+.tasks-off .btn{margin-left:auto}
