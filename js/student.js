@@ -4,6 +4,7 @@ import { $, ic, esc, toast, confetti, confirmBox } from './ui.js';
 import { ymd, getPhase, mmss } from './data.js';
 import { tasksOf, isPick, needOf, isDone, isChecked, posOf, withPos, withToggle, nextTask, doneCount } from './tasks.js';
 
+let pick = null; // 학생이 골라 보는 교시 (null이면 지금 시간대로)
 let U = null, M = null, day = null, mark = { p: {}, k: {} }, msgs = [], unsubs = [], phaseKey = '', recentAt = 0, dateKey = '';
 const box = () => $('#student [data-r=stu]');
 const saveLocal = (m) => { try { if (m) localStorage.setItem('cb:stu', JSON.stringify(m)); else localStorage.removeItem('cb:stu'); } catch (e) { /* 무시 */ } };
@@ -97,7 +98,7 @@ function tick() {
     phaseKey = key;
     let h;
     if (!day) h = '<h3>오늘 시간표를 기다리는 중</h3><p class="hint">선생님이 오늘 교실 보드를 열면 시간표가 나와요.</p>';
-    else if (ph.kind === 'class') h = `<div class="pill-b">${T[ph.cur].morning ? '아침 시간이에요' : `${esc(T[ph.cur].name)} 수업 중`}</div><h2>${esc(T[ph.cur].subject || T[ph.cur].name)}</h2>${chips(T[ph.cur])}`;
+    else if (ph.kind === 'class') h = `<div class="pill-b">${T[ph.cur].morning ? '아침 시간이에요' : T[ph.cur].lunch ? '점심시간이에요' : `${esc(T[ph.cur].name)} 수업 중`}</div><h2>${esc(T[ph.cur].subject || T[ph.cur].name)}</h2>${chips(T[ph.cur])}`;
     else if (ph.kind === 'break' || ph.kind === 'soon') h = `<div class="pill-b brk">${ph.kind === 'soon' ? '곧 수업 시작' : ph.lunch ? '점심시간이에요' : '쉬는 시간이에요'}</div><h2>다음 수업: ${esc(T[ph.next].name)} ${esc(T[ph.next].subject)}</h2><div class="num cd" data-r="cd">${mmss(ph.remain)}</div>${chips(T[ph.next])}`;
     else if (ph.kind === 'morning') h = `<div class="pill-b">좋은 아침이에요</div><h2>${esc(T[ph.next].name)} ${esc(T[ph.next].subject)} · ${esc(T[ph.next].start)} 시작</h2>${chips(T[ph.next])}`;
     else if (ph.kind === 'end') h = '<div class="pill-b ok">오늘 수업 끝!</div><h2>남은 과제가 있으면 마저 체크해요</h2>';
@@ -113,11 +114,17 @@ function drawTasks() {
   const el = box().querySelector('[data-r=tasks]'); if (!el) return;
   const T = (day && day.table) || [];
   const ph = getPhase(T, nowSec());
-  const list = ph.kind === 'class' ? [[T[ph.cur], ph.cur]] : ph.kind === 'end' ? T.map((p, i) => [p, i]) : [];
+  const special = (p) => !!(p && (p.morning || p.lunch));
+  const nowPi = ph.kind === 'class' ? ph.cur : (ph.kind === 'morning' || ph.kind === 'soon') && special(T[ph.next]) ? ph.next : null;
+  const all = T.map((p, i) => [p, i]).filter(([p]) => tasksOf(p).length);
+  if (pick != null && !tasksOf(T[pick]).length) pick = null;
+  const list = pick != null ? [[T[pick], pick]] : nowPi != null ? [[T[nowPi], nowPi]] : ph.kind === 'end' ? T.map((p, i) => [p, i]) : [];
   const withT = list.filter(([p]) => tasksOf(p).length);
-  if (!withT.length) { el.hidden = true; return; }
+  if (!all.length) { el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = withT.map(([p, pi]) => {
+  // 오늘 과제가 있는 교시 고르기: 지난 교시 과제도 이어서 할 수 있어요
+  const tabs = `<div class="ptabs"><span>교시 고르기</span><button data-pk="now" class="${pick == null ? 'sel' : ''}">지금</button>${all.map(([p, i]) => `<button data-pk="${i}" class="${pick === i ? 'sel' : ''} ${all.length && isDone(p, mark, i) ? 'ok' : ''}">${esc(p.name)}</button>`).join('')}</div>`;
+  el.innerHTML = tabs + (withT.length ? '' : '<p class="hint">지금은 과제가 없어요. 위에서 교시를 고르면 그 교시 과제를 할 수 있어요.</p>') + withT.map(([p, pi]) => {
     const done = isDone(p, mark, pi);
     let body;
     if (isPick(p)) {
@@ -131,6 +138,7 @@ function drawTasks() {
     }
     return `<div class="stu-task ${done ? 'ok' : ''}"><h3>${esc(p.name)} ${esc(p.subject)} 과제 ${done ? '<span class="pill-b ok">완료</span>' : ''}</h3>${body}</div>`;
   }).join('');
+  el.querySelectorAll('[data-pk]').forEach((b) => { b.onclick = () => { pick = b.dataset.pk === 'now' ? null : +b.dataset.pk; drawTasks(); }; });
   const T2 = T;
   const save = (m, wasDone, p, pi) => {
     mark = m; recentAt = Date.now();

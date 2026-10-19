@@ -1,10 +1,10 @@
 // 선생님 보드 (게스트 모드 포함): 시계·수업 화면·과제 정류장·위젯 바
 import { $, $$, ic, esc, toast, confetti, confirmBox, setWinStore, closeWin, timerSvg } from './ui.js';
-import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpTargets, mmss, isMorning } from './data.js';
+import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpGroups, mmss, isMorning, isLunch, isSpecial } from './data.js';
 import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
 import * as store from './store.js';
 import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets, setWbHead, onWbFull, isPhone, setWbSync, applyRemote, setTvRatio, myRatio } from './whiteboard.js';
-import { initWidgets, applyBg, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer } from './widgets.js';
+import { initWidgets, applyBg, applyTheme, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer } from './widgets.js';
 import { initSettings, openSettings } from './settings.js';
 import { openHistory } from './history.js';
 import { initClassroom, openStudents, openMessages, onSeats, onMsgs, unreadCount, syncNames } from './classroom.js';
@@ -25,6 +25,8 @@ const S = {
   phase: { kind: 'none' },
   wbOn: false,
   tasksFull: false,
+  pin: null,           // 위쪽 시간표에서 눌러 다시 보는 교시 (null이면 지금 시간대로)
+  pinLive: '',
   saveState: 'ok',
   guestWarned: false,
   unsubs: [],
@@ -52,6 +54,7 @@ function saveDay() {
   S.day.roster = [...roster()];
   const progress = {}, picks = {};
   table().forEach((p, pi) => {
+    if (!tasksOf(p).length) return; // 과제가 없는 교과는 기록하지 않음
     progress[pi] = roster().map((_, k) => posOf(markOf(k), pi));
     picks[pi] = roster().map((_, k) => +((markOf(k).k || {})[pi] || 0));
   });
@@ -114,11 +117,23 @@ function drawTT() {
   const toS = (x) => { const [h, m] = x.split(':'); return h * 3600 + m * 60; };
   $('#tt').innerHTML = table().map((p, i) => {
     let c = '';
-    if (ph.kind === 'class' && ph.cur === i) c = 'now';
+    if (ph.kind === 'class' && ph.cur === i) c = ph.pinned ? 'now pin' : 'now';
     else if (toS(p.end) <= t) c = 'past';
     else if ((ph.kind === 'break' || ph.kind === 'soon' || ph.kind === 'morning') && ph.next === i) c = 'next';
-    return `<div class="p ${c}"><small>${esc(p.name)} · ${esc(p.start)}</small><b>${esc(p.subject || p.name)}</b></div>`;
+    return `<button class="p ${c}" data-pi="${i}" title="눌러서 ${esc(p.name)} 화면 보기"><small>${esc(p.name)} · ${esc(p.start)}</small><b>${esc(p.subject || p.name)}</b></button>`;
   }).join('') || '<span class="hint">오늘은 시간표가 없어요</span>';
+  $$('#tt [data-pi]').forEach((b) => { b.onclick = () => pinTo(+b.dataset.pi, true); });
+}
+/** 위쪽 시간표의 교시를 누르면 그 교시 화면으로 (지난 과제를 이어서 체크) — 다시 누르면 지금 시간으로 */
+function pinTo(pi, mine) {
+  const live = getPhase(table(), nowSec());
+  const isNow = live.kind === 'class' && live.cur === pi;
+  const next = (pi === S.pin || isNow || pi == null) ? null : pi;
+  if (next === S.pin) return;
+  S.pin = next; S.pinLive = next == null ? '' : `${live.kind}:${live.cur ?? live.next ?? ''}`;
+  if (next != null) toast(`${table()[pi].name} 화면이에요. 다시 누르거나 '지금 시간으로'를 누르면 돌아가요`, 3200);
+  if (mine && !guest()) store.setLive(S.user.uid, { pin: { pi: next, date: S.dateKey, at: Date.now(), dev: DEV } }).catch(() => {});
+  S.phaseKey = ''; tick();
 }
 function setLight(c, user) {
   S.cfg.light.state = c;
@@ -172,7 +187,7 @@ function wbHead() {
   const left = (label) => `<span class="wb-left"><small>${label}</small><b class="num" data-r="wbl">${mmss(ph.remain)}</b></span>`;
   if (ph.kind === 'class') {
     const p = T[ph.cur];
-    return `<div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}${isMorning(p) ? left('아침 시간 남은 시간') : ''}`;
+    return `<div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}${isSpecial(p) && !ph.pinned ? left(`${esc(p.name)} 남은 시간`) : ''}`;
   }
   const p = T[ph.next] || {};
   const title = ph.kind === 'break' ? (ph.lunch ? '점심시간' : '쉬는 시간') : ph.kind === 'soon' ? `곧 ${esc(p.name)}` : '좋은 아침이에요';
@@ -186,7 +201,7 @@ function drawStage() {
   $('#app').className = 'mode-' + (ph.kind === 'morning' ? 'class' : ph.kind) + (S.wbOn && wbOK() ? ' wb-on' : '');
   if (!wbOK() && S.wbOn) { S.wbOn = false; if (wbIsFull()) setWbFull(false); }
   if (S.wbOn) { // 판서 중: 판서 화면 (수업 중이면 위에 교시 띠)
-    st.innerHTML = (ph.kind === 'class' ? `<div class="band">${esc(T[ph.cur].name)}</div>` : '') + wbBtn();
+    st.innerHTML = (ph.kind === 'class' ? band(T[ph.cur]) : '') + wbBtn();
     st.appendChild(getWB(wbHead())); bindWbBtn(st);
     requestAnimationFrame(() => { fitWB(); if (isPhone() && !wbIsFull()) setWbFull(true); else publishRatio(); });
     return;
@@ -194,8 +209,12 @@ function drawStage() {
   let h = '';
   if (ph.kind === 'class') {
     const p = T[ph.cur];
-    h = `<div class="band">${esc(p.name)}</div>${wbBtn()}`;
-    h += `<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
+    h = band(p) + wbBtn();
+    if (isSpecial(p) && !ph.pinned) { // 아침 시간·점심시간: 남은 시간과 다음 수업
+      const nx = T.map((x, i) => [x, i]).filter(([x]) => x.start >= p.end && !isSpecial(x)).sort((a, b) => a[0].start.localeCompare(b[0].start))[0];
+      h += `<div class="stage-body"><div class="lesson special pop ${isLunch(p) ? 'lunch' : 'am'}"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}
+        <div class="sp-left"><span>남은 시간</span><b class="num" data-r="spl">${mmss(ph.remain)}</b>${nx ? `<em>다음: ${esc(nx[0].name)} ${esc(nx[0].subject)} · ${esc(nx[0].start)}</em>` : ''}</div></div></div>`;
+    } else h += `<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
   } else if (ph.kind === 'soon') {
     const p = T[ph.next];
     h = `<div class="band soon">${ic('bell')}곧 ${esc(p.name)}</div>${wbBtn()}<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
@@ -211,13 +230,19 @@ function drawStage() {
     const p = T[ph.next];
     h = `${wbBtn()}<div class="stage-body"><div class="morning pop"><div class="hello">좋은 아침이에요!</div><div class="first">${esc(p.name)} ${esc(p.subject)}</div><div class="hint">${esc(p.start)} 시작</div>${chips(p)}</div></div>`;
   } else if (ph.kind === 'end') {
-    h = `<div class="stage-body"><div class="done pop"><div class="stars">${ic('star')}${ic('star')}${ic('star')}</div><div class="t">오늘 수업 끝!</div></div></div>`;
+    // 별 다섯 개가 차례로 반짝이고, 둘레에 작은 반짝이
+    h = `<div class="stage-body"><div class="done pop"><div class="stars">${[0, 1, 2, 3, 4].map((i) => `<span class="star s${i}">${ic('star')}</span>`).join('')}</div>
+      <div class="sparkles">${Array.from({ length: 10 }, (_, i) => `<i style="--x:${(i * 37 + 7) % 100}%;--y:${(i * 53 + 11) % 100}%;--d:${(i * 0.37) % 2.4}s"></i>`).join('')}</div>
+      <div class="t">오늘 수업 끝!</div></div></div>`;
   } else {
     h = `<div class="stage-body"><div class="none pop"><div class="t">오늘은 수업이 없어요</div><p class="hint" style="text-align:center">시간표는 위젯 바의 '설정'에서 바꿀 수 있어요${guest() ? ' · 확인용 \'시간 이동\'으로 평일 화면을 볼 수 있어요' : ''}</p></div></div>`;
   }
   st.innerHTML = h;
   bindWbBtn(st);
+  const up = st.querySelector('[data-a=unpin]'); if (up) up.onclick = () => pinTo(null, true);
 }
+/** 교시 띠: 다시 보는 교시면 '지금 시간으로' 버튼 */
+const band = (p) => `<div class="band ${S.phase.pinned ? 'pinned' : ''}">${esc(p.name)}${S.phase.pinned ? `<span class="pin-tag">다시 보는 중</span><button class="unpin" data-a="unpin">${ic('clock')}지금 시간으로</button>` : ''}</div>`;
 function bindWbBtn(st) {
   const wbb = st.querySelector('[data-a=wb]'); if (!wbb) return;
   wbb.onclick = () => setWbOn(!S.wbOn, true);
@@ -241,10 +266,17 @@ function tickBreak() {
 }
 
 /* ---------- 과제 현황 ---------- */
+/** 지금 보여 줄 과제의 칸: 수업 중이면 그 교시, 첫 칸(아침 시간) 전이면 아침 시간 과제 */
+function taskPi() {
+  const ph = S.phase;
+  if (ph.kind === 'class') return ph.cur;
+  if ((ph.kind === 'morning' || ph.kind === 'soon') && isSpecial(table()[ph.next])) return ph.next;
+  return null;
+}
 function tasksVisible() {
   const ph = S.phase;
   if (!S.cfg.showTasks || !S.day) return false;
-  if (ph.kind === 'class') return tasksOf(table()[ph.cur]).length > 0;
+  if (taskPi() != null) return tasksOf(table()[taskPi()]).length > 0;
   if (ph.kind === 'end') return table().some((p) => tasksOf(p).length);
   return false;
 }
@@ -261,7 +293,7 @@ function lineView() {
       back(k) { const g = pos(k); if (!g) return false; const t = g - 1; let off = 0; for (let pi = 0; pi < T.length; pi++) { const n = tasksOf(T[pi]).length; if (t < off + n) { setMark(k, withPos(markOf(k), pi, t - off)); return true; } off += n; } return false; },
     };
   }
-  const pi = ph.cur, p = T[pi], last = tasksOf(p).length;
+  const pi = taskPi(), p = T[pi], last = tasksOf(p).length;
   return {
     title: `${p.name} 과제`, stations: [...tasksOf(p).map((t) => ({ label: t })), { label: '완료' }], last, pos: (k) => Math.min(posOf(markOf(k), pi), last),
     fwd(k) { const v = posOf(markOf(k), pi); if (v < last) { setMark(k, withPos(markOf(k), pi, v + 1)); return true; } return false; },
@@ -285,11 +317,11 @@ function drawTasks(animate) {
   if (!tasksVisible()) { el.style.display = 'none'; if (S.tasksFull) setTasksFull(false); return; }
   el.style.display = '';
   const ph = S.phase, T = table(), names = roster();
-  const periods = ph.kind === 'end' ? T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length) : [[T[ph.cur], ph.cur]];
+  const tpi = taskPi(), periods = ph.kind === 'end' ? T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length) : [[T[tpi], tpi]];
   const useGrid = periods.some(([p]) => isPick(p));
   const doneAll = (k) => periods.every(([p, pi]) => isDone(p, markOf(k), pi));
   const done = names.filter((n, k) => n && doneAll(k)).length, total = names.filter((n) => n).length; // 명단 빈 번호는 빼고 셈
-  const title = ph.kind === 'end' ? '오늘 과제' : `${T[ph.cur].name} 과제${isPick(T[ph.cur]) ? ` · 골라서 ${needOf(T[ph.cur])}개` : ''}`;
+  const title = ph.kind === 'end' ? '오늘 과제' : `${T[tpi].name} 과제${isPick(T[tpi]) ? ` · 골라서 ${needOf(T[tpi])}개` : ''}`;
   const before = animate && !useGrid ? rects() : null;
   el.classList.toggle('closed', S.cfg.tasksClosed && !S.tasksFull);
   el.classList.toggle('full', S.tasksFull);
@@ -374,30 +406,37 @@ function tick() {
   if (S.day && ymd(now()) !== S.dateKey) { loadToday().then(applyAll); return; }
   if (!S.day) return;
   const prev = S.phase;
-  S.phase = getPhase(table(), nowSec());
-  const key = `${S.phase.kind}:${S.phase.cur ?? S.phase.next ?? ''}`;
+  const live = getPhase(table(), nowSec()), liveKey = `${live.kind}:${live.cur ?? live.next ?? ''}`;
+  // 다시 보던 교시는 시간대가 바뀌면(종이 울리면) 저절로 지금 시간으로 돌아옴
+  if (S.pin != null && (!table()[S.pin] || (S.pinLive && S.pinLive !== liveKey))) { S.pin = null; S.pinLive = ''; toast('시간이 바뀌어서 지금 시간 화면으로 돌아왔어요'); }
+  S.phase = S.pin != null ? { kind: 'class', cur: S.pin, pinned: true } : live;
+  const key = `${S.phase.kind}:${S.phase.cur ?? S.phase.next ?? ''}:${S.pin ?? ''}`;
   if (key !== S.phaseKey) {
     const first = !S.phaseKey;
     S.phaseKey = key;
-    // 아침 시간이 시작될 때는 종을 울리지 않음 (등교 시간이라서)
-    const toMorning = isMorning(table()[S.phase.cur ?? S.phase.next]);
-    if (!first && S.cfg.sound.on && S.cfg.sound.auto && !S.jumping && !toMorning) {
-      if (S.phase.kind === 'class') FX.classStart();
-      else if (S.phase.kind === 'soon') FX.soon();
+    const tp = table()[S.phase.cur ?? S.phase.next];
+    if (!first && S.cfg.sound.on && S.cfg.sound.auto && !S.jumping && !S.phase.pinned && !prev.pinned) {
+      if (S.phase.kind === 'class' && isLunch(tp)) FX.breakStart();      // 점심시간 시작: 쉬는 시간 소리
+      else if (S.phase.kind === 'class' && !isMorning(tp)) FX.classStart(); // 아침 시간이 시작될 때는 종을 울리지 않음 (등교 시간)
+      else if (S.phase.kind === 'soon' && !isSpecial(tp)) FX.soon();
       else if (S.phase.kind === 'break' && prev.kind === 'class') FX.breakStart();
     }
+    // 오늘 수업이 끝나면 꽃가루 (시간 이동으로 미리 볼 때도 보여 줌, 소리는 실제 시간일 때만)
+    if (S.ticked && S.phase.kind === 'end' && prev.kind && prev.kind !== 'end' && !prev.pinned) { confetti(); if (soundOn() && !S.jumping) FX.celebrate(); }
     drawStage(); drawTasks(); drawTT();
   } else {
     if (S.phase.kind === 'break') tickBreak();
     if (S.wbOn) { const l = document.querySelector('[data-r=wbl]'); if (l) l.textContent = mmss(S.phase.remain); }
+    const sl = document.querySelector('#stage [data-r=spl]'); if (sl) sl.textContent = mmss(S.phase.remain);
   }
+  S.ticked = true;
   if (S.phase.kind !== prev.kind || (S.phase.cur ?? -1) !== (prev.cur ?? -1)) drawDbg();
   if (!$('#dbg').hidden) { const n = $('#dbg [data-r=now]'); if (n) n.textContent = nowLabel(); }
 }
 
 function applyAll() {
   setVolume(S.cfg.sound.volume);
-  applyBg(); drawBellSel(); setLight(S.cfg.light.state, false); drawAcct(); drawBar();
+  applyTheme(); applyBg(); drawBellSel(); setLight(S.cfg.light.state, false); drawAcct(); drawBar();
   S.phaseKey = ''; tick();
 }
 
@@ -435,22 +474,26 @@ async function wake() {
 function nowLabel() { const d = now(); return `${d.getMonth() + 1}/${d.getDate()} ${d.toTimeString().slice(0, 8)}${S.offset ? ' (이동한 시간)' : ''}`; }
 function drawDbg() {
   const el = $('#dbg'); if (el.hidden) return;
-  const targets = jumpTargets(table());
+  const J = jumpGroups(table()), hm = `${String(now().getHours()).padStart(2, '0')}:${String(now().getMinutes()).padStart(2, '0')}`;
   el.innerHTML = `<button class="x" data-a="x">✕</button><h4>시간 이동 <em>확인용</em></h4>
     <div class="now" data-r="now">${nowLabel()}</div>
     <div class="shift"><button class="o" data-s="-86400">-1일</button><button class="o" data-s="86400">+1일</button></div>
     <div class="shift"><button class="o" data-s="-600">-10분</button><button class="o" data-s="-60">-1분</button><button class="o" data-s="60">+1분</button><button class="o" data-s="600">+10분</button></div>
-    <div class="lab">교시별로 바로 가기</div>
-    <div class="jumps">${targets.map((t) => `<button class="o" data-j="${t.sec}">${esc(t.label)}</button>`).join('') || '<span class="lab">오늘 시간표가 없어요</span>'}</div>
+    <div class="shift go-time"><input type="time" data-r="tm" value="${hm}" aria-label="이동할 시각"><button class="o" data-a="gotm">이 시각으로</button></div>
+    <div class="lab">시간표의 모든 시각으로 바로 가기</div>
+    <div class="jgroups">${J.groups.map((g) => `<div class="jg"><div class="jn"><b>${esc(g.name)}</b><span>${esc(g.sub)} · ${esc(g.time)}</span></div>
+      <div class="ji">${g.items.map(([l, sec]) => `<button class="o" data-j="${sec}">${l}</button>`).join('')}</div></div>`).join('') || '<span class="lab">오늘 시간표가 없어요</span>'}
+      ${J.extra.length ? `<div class="ji">${J.extra.map(([l, sec]) => `<button class="o" data-j="${sec}">${l}</button>`).join('')}</div>` : ''}</div>
     <div class="lab">쉬는 시간 타이머 모양</div>
     <div class="g" style="grid-template-columns:1fr 1fr 1fr">${[['hour', '모래시계'], ['pie', '부채꼴'], ['num', '숫자만']].map(([k, n]) => `<button class="o ${S.cfg.timerType === k ? 'sel' : ''}" data-t="${k}">${n}</button>`).join('')}</div>
     <button class="o" data-a="real" style="width:100%">실제 시간으로 돌아가기</button>`;
   el.querySelector('[data-a=x]').onclick = () => { el.hidden = true; };
-  const jump = (fn) => { S.jumping = true; fn(); S.phaseKey = ''; tick(); S.jumping = false; drawDbg(); };
+  const jump = (fn) => { S.jumping = true; S.pin = null; S.pinLive = ''; fn(); S.phaseKey = ''; tick(); S.jumping = false; drawDbg(); };
   el.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => jump(() => { S.offset += +b.dataset.s; }); });
   el.querySelectorAll('[data-j]').forEach((b) => { b.onclick = () => jump(() => { S.offset += +b.dataset.j - nowSec(); }); });
   el.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => { S.cfg.timerType = b.dataset.t; saveCfg(); drawStage(); drawDbg(); }; });
   el.querySelector('[data-a=real]').onclick = () => jump(() => { S.offset = 0; });
+  el.querySelector('[data-a=gotm]').onclick = () => { const v = el.querySelector('[data-r=tm]').value; if (!v) return; const [hh, mi] = v.split(':').map(Number); jump(() => { S.offset += hh * 3600 + mi * 60 - nowSec(); }); };
 }
 
 /* ---------- 같은 계정 여러 화면 연동 (TV ↔ 휴대폰) ---------- */
@@ -495,6 +538,7 @@ function startLive() {
     if (d.wb && fresh('wb')) { setWbOn(!!d.wb.on, false); if (d.wb.on && d.wb.full && !isPhone()) requestAnimationFrame(() => setWbFull(true)); }
     if (d.timer && d.timer.dev !== DEV && d.timer.v !== seen.timer) { seen.timer = d.timer.v; if (d.timer.v > LIVE.started - 1000 || d.timer.running) applyRemoteTimer(d.timer); }
     if (d.scr) setTvRatio(d.scr.ar);
+    if (d.pin && fresh('pin') && d.pin.date === S.dateKey && Date.now() - d.pin.at < 10 * 60 * 1000) { if (d.pin.pi == null) { if (S.pin != null) pinTo(null, false); } else if (S.pin !== d.pin.pi) pinTo(d.pin.pi, false); }
   }, () => {});
   // 3) 판서 선·글자
   setWbSync({

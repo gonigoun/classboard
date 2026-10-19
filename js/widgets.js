@@ -1,6 +1,6 @@
 // 위젯: 배경, 이름 뽑기, 소음 측정(실제 마이크), 신호등
 import { $, ic, esc, toast, confetti, openWin, closeWin, isWinOpen, timerSvg } from './ui.js';
-import { FX, BELLS } from './sound.js';
+import { FX, BELLS, ringBell, stopSounds } from './sound.js';
 
 let ctx = null; // app.js가 넘겨주는 { cfg(), save(), soundOn(), roster(), setLight(), bgImage(), setBgImage() }
 export function initWidgets(c) { ctx = c; }
@@ -8,7 +8,7 @@ const fx = (name, ...a) => { if (ctx.soundOn()) FX[name](...a); };
 
 /* ---------- 배경 ---------- */
 const PATTERNS = [
-  { id: 'grid', name: '모눈' }, { id: 'notebook', name: '공책' }, { id: 'chalk', name: '칠판' },
+  { id: 'sunset', name: '노을' }, { id: 'grid', name: '모눈' }, { id: 'notebook', name: '공책' }, { id: 'chalk', name: '칠판' },
   { id: 'dots', name: '물방울' }, { id: 'solid', name: '단색' },
 ];
 const svgUrl = (s) => `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
@@ -41,6 +41,9 @@ function autoBg() {
   if (h < 15) return 'linear-gradient(160deg,#D9F2E6,#F4FBF7)';
   return 'linear-gradient(160deg,#FFE3C7,#FFF6EC)';
 }
+
+/** 화면 색 테마: 노을(기본값) / 기본(파랑) */
+export function applyTheme() { document.body.classList.toggle('theme-sunset', ctx.cfg().theme !== 'classic'); }
 
 export function applyBg() {
   const b = ctx.cfg().bg, el = $('#bg');
@@ -96,9 +99,19 @@ function drawBg(w) {
   else body = `<label>내 컴퓨터 사진 <input type="file" accept="image/*" data-r="file"></label>
       <label>이미지 주소 <input type="url" data-r="url" placeholder="https://…" value="${b.kind === 'url' ? esc(b.value) : ''}"><button class="btn ghost" data-r="useurl">넣기</button></label>
       <p class="hint">사진은 로그인한 선생님 기록에만 저장돼요. 다른 사람이 만든 사진은 저작권을 확인하고 써 주세요.</p>`;
-  box.innerHTML = `<div class="tabs">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${bgTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}
+  const th = ctx.cfg().theme === 'classic' ? 'classic' : 'sunset';
+  box.innerHTML = `<div class="themes"><span>화면 색</span>${[['sunset', '노을'], ['classic', '기본 (파랑)']].map(([k, n]) => `<button data-th="${k}" class="${th === k ? 'sel' : ''} th-${k}"><i></i>${n}</button>`).join('')}</div>
+    <div class="tabs">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${bgTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}
     <label>배경 어둡게 <input type="range" min="0" max="70" value="${b.dim || 0}" data-r="dim"> <span class="num">${b.dim || 0}%</span></label>`;
   const set = (patch) => { Object.assign(ctx.cfg().bg, patch); ctx.save(); applyBg(); drawBg(w); };
+  box.querySelectorAll('[data-th]').forEach((t) => {
+    t.onclick = () => {
+      const c = ctx.cfg(); c.theme = t.dataset.th;
+      // 테마에 어울리는 바탕으로 같이 바꿈 (사진·일러스트를 쓰고 있으면 그대로)
+      if (c.bg.kind === 'pattern' || c.bg.kind === 'auto') Object.assign(c.bg, c.theme === 'sunset' ? { kind: 'pattern', value: 'sunset', color: '#FFF4E0' } : { kind: 'pattern', value: 'grid', color: '#DCE8FB' });
+      ctx.save(); applyTheme(); applyBg(); drawBg(w);
+    };
+  });
   box.querySelectorAll('[data-tab]').forEach((t) => { t.onclick = () => { bgTab = t.dataset.tab; drawBg(w); }; });
   box.querySelectorAll('[data-pt]').forEach((t) => { t.onclick = () => set({ kind: 'pattern', value: t.dataset.pt }); });
   box.querySelectorAll('[data-il]').forEach((t) => { t.onclick = () => set({ kind: 'illust', value: t.dataset.il }); });
@@ -127,6 +140,7 @@ function patPreview(id, color) {
     chalk: 'background:#2F4F43;color:#fff',
     dots: 'background:#EFE9FF radial-gradient(rgba(123,92,250,.35) 3px,transparent 4px) 0 0/14px 14px',
     solid: `background:${c}`,
+    sunset: 'background:linear-gradient(135deg,#FFF6C9,#FFD9C2 45%,#F2C9DD 80%,#D9CDEA);color:#5F4B8B',
   }[id];
 }
 
@@ -274,14 +288,17 @@ export function openTimer() {
     </div>`, (w) => bindTimer(w), () => { TW = null; });
 }
 function setSec() { const t = ctx.cfg().timer || {}; return (+t.h || 0) * 3600 + (+t.m || 0) * 60 + (+t.s || 0); }
-const share = () => { if (ctx.timerSync) ctx.timerSync({ total: T.total, left: T.left, running: T.running, endAt: T.endAt, done: T.done, type: ctx.cfg().timer.type, bell: ctx.cfg().timer.bell, v: tnow() }); };
+const share = () => { if (ctx.timerSync) ctx.timerSync({ total: T.total, left: T.left, running: T.running, endAt: T.endAt, done: T.done, type: ctx.cfg().timer.type, bell: ctx.cfg().timer.bell, alarm: !!T.alarm, v: tnow() }); };
 function tDraw() {
   if (!TW) return;
   const w = TW, q = (r) => w.querySelector(`[data-r=${r}]`), a = (r) => w.querySelector(`[data-a=${r}]`), c = ctx.cfg();
   const f = T.total ? T.left / T.total : 0, type = c.timer.type, done = T.done;
   q('vis').className = 'tmr-vis t-' + type + (done ? ' done' : '');
-  q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '시간 끝!' : fmt(T.left)}</div>`;
-  a('go').textContent = T.running ? '일시 정지' : done ? '소리 끄기' : T.left < T.total ? '계속' : '시작';
+  q('vis').innerHTML = (type === 'num' ? '' : `<div class="tmr-svg">${timerSvg(type, f)}</div>`) + `<div class="tmr-num num">${done ? '종료' : fmt(T.left)}</div>`
+    + (T.alarm ? `<button class="tmr-stop" data-a="stopal">${ic('mute')}알람 멈추기</button>` : '');
+  const st = q('vis').querySelector('[data-a=stopal]'); if (st) st.onclick = () => { tStopAlarm(); share(); };
+  a('go').textContent = T.running ? '일시 정지' : done ? (T.alarm ? '알람 멈추기' : '처음으로') : T.left < T.total ? '계속' : '시작';
+  a('go').classList.toggle('alarm', !!(done && T.alarm));
   q('set').classList.toggle('lock', T.running);
   // 시간 더하기·빼기 버튼은 언제나 보임. 시작 전에는 시간 고르기 버튼도 함께
   const busy = T.running || done || (T.total && T.left < T.total);
@@ -296,14 +313,19 @@ function tLoop() {
 }
 function tRun() { clearInterval(T.iv); if (T.running) { T.iv = setInterval(tLoop, 200); tLoop(); } else tDraw(); }
 function tFinish() {
-  T.done = true; tDraw();
-  const c = ctx.cfg(); const ring = () => import('./sound.js').then((m) => m.ringBell(c.timer.bell, []));
-  clearInterval(T.ringing); ring(); let n = 1; T.ringing = setInterval(() => { if (n++ >= 3) clearInterval(T.ringing); ring(); }, 2600);
+  T.done = true; T.alarm = true; tDraw();
+  const c = ctx.cfg(); const ring = () => { if (T.alarm) ringBell(c.timer.bell, []); };
+  // 알람은 3번 울리고 저절로 멈춤. 중간에 '알람 멈추기'로 바로 끌 수 있음
+  clearInterval(T.ringing); clearTimeout(T.alarmEnd); ring(); let n = 1;
+  T.ringing = setInterval(() => { if (n++ >= 3) clearInterval(T.ringing); ring(); }, 2600);
+  T.alarmEnd = setTimeout(() => { T.alarm = false; tDraw(); }, 2600 * 2 + 2500);
   toast('타이머 시간이 끝났어요');
   if (!TW) openTimer(); // 창을 닫아 두었어도 끝나면 다시 띄움
 }
-function tReset() { clearInterval(T.ringing); clearInterval(T.iv); T.running = false; T.done = false; T.total = T.left = setSec(); tDraw(); }
-function tStart(sec) { clearInterval(T.ringing); T.done = false; if (sec) T.total = T.left = sec; T.running = true; T.endAt = tnow() + T.left * 1000; tRun(); }
+/** 알람만 멈춤 (화면은 '종료' 그대로) */
+function tStopAlarm() { clearInterval(T.ringing); clearTimeout(T.alarmEnd); T.alarm = false; stopSounds(); tDraw(); }
+function tReset() { if (T.alarm) tStopAlarm(); clearInterval(T.ringing); clearInterval(T.iv); T.running = false; T.done = false; T.total = T.left = setSec(); tDraw(); }
+function tStart(sec) { if (T.alarm) tStopAlarm(); clearInterval(T.ringing); T.done = false; if (sec) T.total = T.left = sec; T.running = true; T.endAt = tnow() + T.left * 1000; tRun(); }
 
 /** 다른 화면에서 바뀐 타이머를 그대로 따라감 (창이 닫혀 있으면 엶) */
 export function applyRemoteTimer(st) {
@@ -312,6 +334,7 @@ export function applyRemoteTimer(st) {
   T.total = st.total; T.running = !!st.running; T.endAt = st.endAt; T.done = !!st.done;
   T.left = T.running ? Math.max(0, (T.endAt - tnow()) / 1000) : st.left;
   if (!T.done) clearInterval(T.ringing);
+  if (T.alarm && (!T.done || st.alarm === false)) tStopAlarm(); // 다른 화면에서 알람을 멈추면 여기도 멈춤
   if (!TW && (T.running || T.done)) openTimer();
   tRun();
   if (T.done && !wasDone && !st.running) { /* 저쪽에서 끝남: 이쪽도 이미 끝났거나 곧 끝남 */ }
@@ -353,6 +376,7 @@ function bindTimer(w) {
     };
   });
   a('go').onclick = () => {
+    if (T.done && T.alarm) { tStopAlarm(); share(); return; }
     if (T.done) { tReset(); share(); return; }
     if (T.running) { T.left = Math.max(0, (T.endAt - tnow()) / 1000); T.running = false; tRun(); share(); return; }
     if (!T.total) { toast('시간을 먼저 정해 주세요'); return; }
