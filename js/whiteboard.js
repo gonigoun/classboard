@@ -208,7 +208,10 @@ function buildWB() {
   function addText(x, y, data) {
     const t = data ? { size: data.size, bold: data.bold, c: data.c } : { ...WB.txt };
     const o = makeObj('txt', x, data ? y : y - t.size * 0.6, data && data.id); o._t = t;
-    const ed = document.createElement('div'); ed.contentEditable = 'true'; o.appendChild(ed);
+    const ed = document.createElement('div'); ed.contentEditable = 'true';
+    // 맞춤법·띄어쓰기 빨간 밑줄과 자동 고침은 판서에서 끔 (화면이 지저분해 보여서)
+    ed.spellcheck = false; ed.setAttribute('autocorrect', 'off'); ed.setAttribute('autocapitalize', 'off'); ed.setAttribute('autocomplete', 'off');
+    o.appendChild(ed);
     // 테두리 둘레 어디를 잡아도 옮길 수 있게 (위·아래·왼쪽·오른쪽 띠)
     ['t', 'r', 'b', 'l'].forEach((k) => { const g = document.createElement('span'); g.className = 'edge ' + k; g.title = '끌어서 옮기기'; g.onpointerdown = (e) => drag(e, o, 'move'); o.appendChild(g); });
     if (data) { if (data.html) ed.innerHTML = cleanHTML(data.html); else ed.textContent = data.text || ''; }

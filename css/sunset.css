@@ -157,3 +157,8 @@ body.theme-sunset .bub.t{background:var(--marigold-soft)}
 body.theme-sunset *{scrollbar-color:#D9C7E3 transparent}
 body.theme-sunset ::-webkit-scrollbar-thumb{background:#D9C7E3;background-clip:padding-box}
 body.theme-sunset .dbg,body.theme-sunset .dbg *{scrollbar-color:#4A5470 transparent}
+/* 시간표 끌어서 옮기기 · 고른 칸 */
+body.theme-sunset .prow.pick{border-color:var(--violet);box-shadow:0 0 0 3px var(--violet-soft)}
+body.theme-sunset .dnd:hover{background:var(--violet-soft);color:var(--violet)}
+body.theme-sunset .dropline{border-top-color:var(--coral2)}
+body.theme-sunset .drag-ghost{background:var(--grad)}

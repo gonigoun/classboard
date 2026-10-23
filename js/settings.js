@@ -7,6 +7,7 @@ let ctx = null; // { cfg(), day(), todayWd(), saveCfg(), saveDay(), applyAll(), 
 export function initSettings(c) { ctx = c; }
 
 let tab = 'table', dayKey = null, draft = null, dirty = false, modal = null;
+let pick = -1; // 시간표에서 고른 칸 (교시 추가는 이 칸 바로 뒤에)
 
 export function openSettings(start = 'table') {
   if (modal) return;
@@ -23,6 +24,8 @@ export function openSettings(start = 'table') {
 
 function loadDraft() {
   draft = clone(dayKey === 'today' ? (ctx.day() ? ctx.day().table : []) : (ctx.cfg().weekTables[dayKey] || []));
+  draft.sort((a, b) => toSec(a.start) - toSec(b.start)); // 시간 순서대로 보여야 끌어서 옮기기가 헷갈리지 않아요
+  pick = -1;
 }
 
 async function close() {
@@ -37,7 +40,7 @@ function draw() {
   const tabs = [['table', '시간표·과제'], ['roster', '학생 명단'], ['sound', '소리'], ['reset', '초기화'], ...(ctx.isAdmin() ? [['allow', '허용할 선생님']] : [])];
   box.innerHTML = `<div class="set-h"><h2>설정</h2><div class="seg">${tabs.map(([k, n]) => `<button data-t="${k}" class="${tab === k ? 'sel' : ''}">${n}</button>`).join('')}</div><button class="x" data-a="close">${ic('x')}</button></div>
     <div class="set-b" data-tab="${tab}">${tab === 'table' ? tableBody() : tab === 'roster' ? rosterBody() : tab === 'sound' ? soundBody() : tab === 'allow' ? allowBody() : resetBody()}</div>
-    ${tab === 'table' ? `<div class="set-f"><button class="btn ghost" data-a="addp">${ic('cal')} 교시 추가</button>${draft.some(isMorning) ? '' : `<button class="btn ghost" data-a="addam">${ic('sunny')} 아침 시간 추가</button>`}${draft.some(isLunch) ? '' : `<button class="btn ghost" data-a="addlu">${ic('star')} 점심시간 추가</button>`}<span class="sp"></span>
+    ${tab === 'table' ? `<div class="set-f"><button class="btn ghost" data-a="addp">${ic('cal')} ${pick >= 0 && draft[pick] ? `${esc(draft[pick].name)} 뒤에 교시 추가` : '교시 추가'}</button>${draft.some(isMorning) ? '' : `<button class="btn ghost" data-a="addam">${ic('sunny')} 아침 시간 추가</button>`}${draft.some(isLunch) ? '' : `<button class="btn ghost" data-a="addlu">${ic('star')} 점심시간 추가</button>`}<span class="sp"></span>
        ${ctx.guest() ? '<span class="hint">게스트 모드에서는 저장되지 않아요</span>' : ''}<button class="btn" data-a="savet">저장</button></div>` : ''}`;
   box.querySelector('[data-a=close]').onclick = close;
   box.querySelectorAll('.seg [data-t]').forEach((b) => {
@@ -63,10 +66,11 @@ function tableBody() {
     : `매주 ${WEEKDAYS[+dayKey]}요일에 쓰는 기본 시간표예요.${+dayKey === wd && !(ctx.day() && ctx.day().custom) ? ' 오늘 시간표에도 바로 반영돼요.' : ''}`;
   return `<div class="days">${days.map(([k, n]) => `<button data-d="${k}" class="${dayKey === k ? 'sel' : ''} ${k === 'today' ? 'today' : ''}">${n}</button>`).join('')}</div>
     <p class="hint">${note} 과제는 적은 순서대로 정류장이 돼요.</p>
+    <p class="hint">${ic('grip')} 손잡이를 끌면 교시(과목·과제)나 과제·준비물 순서를 옮길 수 있어요. 시간은 그 자리에 그대로 있어요. 교시를 누르고 <b>교시 추가</b>를 누르면 그 바로 뒤에 들어가요.</p>
     ${draft.length ? draft.map((p, i) => periodRow(p, i)).join('') : '<p class="hint">교시가 없어요. 아래 \'교시 추가\'를 눌러 주세요.</p>'}`;
 }
 function listUI(arr, kind, i) {
-  return `<div class="tlist" data-list="${kind}" data-i="${i}">${arr.map((t, k) => `<div class="it"><span>${k + 1}</span><input type="text" value="${esc(t)}" data-k="${k}">
+  return `<div class="tlist" data-list="${kind}" data-i="${i}">${arr.map((t, k) => `<div class="it" data-k="${k}"><button class="dnd" data-grip="it" title="끌어서 옮기기" aria-label="끌어서 옮기기">${ic('grip')}</button><span>${k + 1}</span><input type="text" value="${esc(t)}" data-k="${k}">
       <button class="mini" data-mv="-1" data-k="${k}" title="위로">${ic('up')}</button><button class="mini rm" data-del="${k}" title="삭제">${ic('x')}</button></div>`).join('')}
     <button class="addbtn" data-add="1">+ ${kind === 'tasks' ? '과제 추가' : '준비물 추가'}</button></div>`;
 }
@@ -80,7 +84,8 @@ function timeSel(f, v) {
 }
 function periodRow(p, i) {
   const am = isSpecial(p), lu = isLunch(p);
-  return `<div class="prow ${am ? 'am' : ''} ${lu ? 'lu' : ''}" data-i="${i}"><div class="top">
+  return `<div class="prow ${am ? 'am' : ''} ${lu ? 'lu' : ''} ${pick === i ? 'pick' : ''}" data-i="${i}"><div class="top">
+      ${am ? '<span class="dnd off"></span>' : `<button class="dnd big" data-grip="p" title="끌어서 교시 옮기기" aria-label="끌어서 교시 옮기기">${ic('grip')}</button>`}
       <label>이름<input type="text" data-f="name" value="${esc(p.name)}"></label>
       <label>시작${timeSel('start', p.start)}</label>
       <label>끝${timeSel('end', p.end)}</label>
@@ -92,6 +97,123 @@ function periodRow(p, i) {
         ${p.mode === 'pick' ? `<label class="need">완료 기준 <input type="number" min="1" max="${Math.max(1, (p.tasks || []).length)}" data-f="need" value="${esc(p.need || (p.tasks || []).length || 1)}">개</label>` : ''}</div>
       ${listUI(p.tasks || [], 'tasks', i)}</div></div></div>`;
 }
+const fmt = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
+const SLOT = ['name', 'start', 'end', 'morning', 'lunch']; // 칸(시간 자리)에 붙어 있는 것. 나머지(과목·준비물·과제·방식)는 끌면 따라 움직여요
+const content = (p) => Object.fromEntries(Object.entries(p).filter(([k]) => !SLOT.includes(k)));
+const slotOf = (p) => Object.fromEntries(Object.entries(p).filter(([k]) => SLOT.includes(k)));
+/** 'n교시' 이름은 시간 순서대로 다시 번호 매김 (직접 바꾼 이름은 그대로) */
+function renumber() {
+  let n = 0;
+  draft.forEach((p) => { if (isSpecial(p)) return; n++; if (/^\d+교시$/.test(p.name)) p.name = `${n}교시`; });
+}
+
+/** 고른 칸 바로 뒤에 교시를 넣고, 그 뒤 칸들은 넣은 만큼 시간을 미뤄요 */
+function addAfter(i) {
+  const base = draft[i];
+  draft.sort((a, b) => toSec(a.start) - toSec(b.start));
+  const at = draft.indexOf(base), next = draft[at + 1];
+  const bEnd = toSec(base.end);
+  // 쉬는 시간: 바로 뒤가 교시면 원래 있던 만큼, 아니면(점심·마지막) 평소 교시 사이 쉬는 시간 (없으면 10분)
+  const reg = draft.filter((p) => !isSpecial(p)), gaps = [];
+  for (let k = 0; k < reg.length - 1; k++) { const g = toSec(reg[k + 1].start) - toSec(reg[k].end); if (g > 0 && g <= 1800) gaps.push(g); }
+  const usual = gaps.length ? gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 600;
+  let gap = next && !isSpecial(base) && !isSpecial(next) ? toSec(next.start) - bEnd : usual;
+  if (gap < 0 || gap > 1800) gap = usual;
+  const dur = !isSpecial(base) && bEnd > toSec(base.start) ? bEnd - toSec(base.start) : 2400; // 길이는 고른 교시와 같게 (아침·점심 뒤면 40분)
+  const st = bEnd + gap, shift = dur + gap;
+  for (let k = at + 1; k < draft.length; k++) { draft[k].start = fmt(toSec(draft[k].start) + shift); draft[k].end = fmt(toSec(draft[k].end) + shift); }
+  const item = { name: '0교시', start: fmt(st), end: fmt(st + dur), subject: '', items: [], tasks: [] };
+  draft.splice(at + 1, 0, item); renumber();
+  pick = at + 1; draw();
+  const row = modal.querySelector(`.prow[data-i="${pick}"]`); if (row) { row.classList.add('new'); row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  const late = draft[draft.length - 1];
+  toast(at + 2 < draft.length ? `${base.name} 뒤에 ${item.name}(${item.start}~${item.end})를 넣고, 뒤 칸들을 ${Math.round(shift / 60)}분씩 미뤘어요${toSec(late.end) > 17 * 3600 ? '. 끝나는 시간이 늦어졌는지 확인해 주세요' : ''}`
+    : `${base.name} 뒤에 ${item.name}(${item.start}~${item.end})를 넣었어요`, 4200);
+}
+
+/* ---------- 끌어서 옮기기 (마우스·터치 모두) ---------- */
+function dragStart(e, label, onMove, onDrop) {
+  if (e.button > 0) return;
+  e.preventDefault();
+  const h = e.currentTarget, scroller = modal.querySelector('.set-b');
+  const ghost = document.createElement('div'); ghost.className = 'drag-ghost'; ghost.textContent = label;
+  document.body.appendChild(ghost);
+  const line = document.createElement('div'); line.className = 'dropline';
+  let x = e.clientX, y = e.clientY, raf = 0, done = false;
+  const place = () => { ghost.style.transform = `translate(${x + 14}px, ${y - 18}px)`; onMove(x, y, line); };
+  const tick = () => { // 창 위·아래 끝에 가까우면 저절로 넘겨요
+    const r = scroller.getBoundingClientRect(), edge = 60;
+    const v = y < r.top + edge ? -Math.ceil((r.top + edge - y) / 4) : y > r.bottom - edge ? Math.ceil((y - r.bottom + edge) / 4) : 0;
+    if (v) { scroller.scrollTop += v; place(); }
+    raf = requestAnimationFrame(tick);
+  };
+  const end = (ok) => {
+    if (done) return; done = true;
+    cancelAnimationFrame(raf); ghost.remove(); line.remove(); document.body.classList.remove('dragging');
+    h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', cc); removeEventListener('keydown', esc_);
+    if (ok) onDrop();
+  };
+  const mv = (ev) => { x = ev.clientX; y = ev.clientY; place(); };
+  const up = () => end(true), cc = () => end(false), esc_ = (ev) => { if (ev.key === 'Escape') end(false); };
+  try { h.setPointerCapture(e.pointerId); } catch (_) { /* 무시 */ }
+  h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', cc); addEventListener('keydown', esc_);
+  document.body.classList.add('dragging');
+  place(); raf = requestAnimationFrame(tick);
+}
+/** 위에서부터 보아 가운데가 y보다 아래인 첫 줄 앞 (없으면 맨 뒤) */
+const slotAt = (els, y) => { const k = els.findIndex((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2 > y; }); return k < 0 ? els.length : k; };
+
+function dragPeriod(e, box, row, mark) {
+  const from = +row.dataset.i, src = draft[from];
+  let ins = null;
+  row.classList.add('lifted');
+  dragStart(e, `${src.name} · ${src.subject || '과목 없음'}`, (x, y, line) => {
+    const rows = [...box.querySelectorAll('.prow')];
+    ins = slotAt(rows, y);
+    if (ins < rows.length) rows[ins].before(line); else rows[rows.length - 1].after(line);
+  }, () => {
+    row.classList.remove('lifted');
+    if (ins === null) return;
+    const R = draft.map((p, k) => k).filter((k) => !isSpecial(draft[k]));
+    const fromPos = R.indexOf(from);
+    let toPos = R.filter((k) => k < ins && k !== from).length;
+    if (fromPos < 0 || toPos === fromPos) { draw(); return; }
+    const C = R.map((k) => content(draft[k]));
+    const [c] = C.splice(fromPos, 1); C.splice(toPos, 0, c);
+    R.forEach((k, n) => { draft[k] = { ...slotOf(draft[k]), ...C[n] }; });
+    pick = R[toPos]; mark(); draw();
+    const r = modal.querySelector(`.prow[data-i="${pick}"]`); if (r) r.classList.add('new');
+    toast(`${src.subject || '내용'}을(를) ${draft[pick].name}(${draft[pick].start}~${draft[pick].end})로 옮겼어요`);
+  });
+  if (!document.body.classList.contains('dragging')) row.classList.remove('lifted');
+}
+
+function dragItem(e, box, it, mark) {
+  const tl = it.closest('.tlist'), kind = tl.dataset.list, fromI = +tl.dataset.i, fromK = +it.dataset.k;
+  const val = (draft[fromI][kind] || [])[fromK] || '';
+  let to = null; // { i, k }
+  it.classList.add('lifted');
+  dragStart(e, val || '(빈 칸)', (x, y, line) => {
+    const lists = [...box.querySelectorAll(`.tlist[data-list="${kind}"]`)];
+    const hit = lists.find((l) => { const r = l.getBoundingClientRect(); return x >= r.left - 20 && x <= r.right + 20 && y >= r.top - 14 && y <= r.bottom + 14; });
+    if (!hit) return;
+    const its = [...hit.querySelectorAll(':scope > .it')];
+    const k = slotAt(its, y);
+    to = { i: +hit.dataset.i, k };
+    if (k < its.length) its[k].before(line); else hit.querySelector(':scope > [data-add]').before(line);
+  }, () => {
+    it.classList.remove('lifted');
+    if (!to) return;
+    const a = draft[fromI][kind] = draft[fromI][kind] || [], b = draft[to.i][kind] = draft[to.i][kind] || [];
+    let k = to.k;
+    if (a === b && k > fromK) k--;
+    if (a === b && k === fromK) { draw(); return; }
+    const [v] = a.splice(fromK, 1); b.splice(k, 0, v);
+    mark(); draw();
+    if (to.i !== fromI) toast(`${draft[to.i].name}(으)로 옮겼어요`);
+  });
+}
+
 function bindTable(box) {
   const mark = () => { dirty = true; };
   box.querySelectorAll('[data-d]').forEach((b) => {
@@ -102,6 +224,12 @@ function bindTable(box) {
   });
   box.querySelectorAll('.prow').forEach((row) => {
     const i = +row.dataset.i;
+    // 칸을 누르면 고른 칸이 돼요 (교시 추가 버튼 글자도 바뀜)
+    row.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('[data-grip],[data-delp]') || pick === i) return;
+      pick = i; box.querySelectorAll('.prow.pick').forEach((x) => x.classList.remove('pick')); row.classList.add('pick');
+      const b = box.querySelector('[data-a=addp]'); if (b) b.innerHTML = `${ic('cal')} ${esc(draft[i].name)} 뒤에 교시 추가`;
+    });
     row.querySelectorAll('[data-f]').forEach((inp) => {
       inp.oninput = () => { draft[i][inp.dataset.f] = inp.dataset.f === 'need' ? Math.max(1, +inp.value || 1) : inp.value; mark(); if (inp.dataset.f === 'mode') draw(); };
     });
@@ -109,7 +237,7 @@ function bindTable(box) {
       const sel = (k) => ts.querySelector(`[data-part=${k}]`);
       ts.querySelectorAll('select').forEach((x) => { x.onchange = () => { draft[i][ts.dataset.tf] = `${String(sel('h').value).padStart(2, '0')}:${String(sel('m').value).padStart(2, '0')}`; mark(); }; });
     });
-    row.querySelector('[data-delp]').onclick = () => { draft.splice(i, 1); mark(); draw(); };
+    row.querySelector('[data-delp]').onclick = () => { draft.splice(i, 1); pick = -1; mark(); draw(); };
     row.querySelectorAll('.tlist').forEach((tl) => {
       const kind = tl.dataset.list, arr = draft[i][kind] = draft[i][kind] || [];
       tl.querySelectorAll('input[data-k]').forEach((inp) => { inp.oninput = () => { arr[+inp.dataset.k] = inp.value; mark(); }; });
@@ -118,8 +246,10 @@ function bindTable(box) {
       tl.querySelector('[data-add]').onclick = () => { arr.push(''); mark(); draw(); const ins = modal.querySelectorAll(`.prow[data-i="${i}"] .tlist[data-list="${kind}"] input`); ins[ins.length - 1].focus(); };
     });
   });
-  const fmt = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
+  box.querySelectorAll('[data-grip=p]').forEach((g) => { g.onpointerdown = (e) => dragPeriod(e, box, g.closest('.prow'), mark); });
+  box.querySelectorAll('[data-grip=it]').forEach((g) => { g.onpointerdown = (e) => dragItem(e, box, g.closest('.it'), mark); });
   box.querySelector('[data-a=addp]').onclick = () => {
+    if (pick >= 0 && draft[pick]) { addAfter(pick); mark(); return; }
     const last = draft[draft.length - 1];
     const st = last ? Math.ceil((toSec(last.end) + 600) / 300) * 300 : 9 * 3600;
     draft.push({ name: `${draft.filter((p) => !isSpecial(p)).length + 1}교시`, start: fmt(st), end: fmt(st + 2400), subject: '', items: [], tasks: [] });
