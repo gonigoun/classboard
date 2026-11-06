@@ -10,7 +10,7 @@ const PASTEL = ['#FFF176', '#FFCCBC', '#C8E6C9', '#B3E5FC', '#E1BEE7', '#F8BBD0'
 const NEON = [['#F4FF2E', '네온 노랑'], ['#3DFF8B', '네온 초록'], ['#FF4FD8', '네온 분홍'], ['#36E7FF', '네온 하늘'], ['#FF9F1C', '네온 주황']];
 // 판서 글씨체 (손글씨 느낌). [이름표, 글꼴, 보이는 이름]
 const FONTS = [
-  ['gamja', "'Gamja Flower', 'Noto Sans KR', sans-serif", '감자꽃'],
+  ['kyobo', "'KyoboHandwriting2025lyb', 'Noto Sans KR', sans-serif", '교보 손글씨 이유빈'],
   ['poor', "'Poor Story', 'Noto Sans KR', sans-serif", '서툰이야기'],
   ['gaegu', "'Gaegu', 'Noto Sans KR', sans-serif", '개구쟁이'],
   ['pen', "'Nanum Pen Script', 'Nanum Pen', 'Noto Sans KR', sans-serif", '나눔 손글씨 펜'],
@@ -18,7 +18,7 @@ const FONTS = [
   ['dokrip', "'Dokrip', 'Noto Sans KR', sans-serif", '윤독립체'],
   ['basic', "'Noto Sans KR', system-ui, sans-serif", '반듯한 글씨 (예전)'],
 ];
-const DEF_FONT = 'gamja'; // 대표 글꼴: 감자꽃 · 굵게 · 진한 밤색
+const DEF_FONT = 'kyobo'; // 대표 글꼴: 교보 손글씨 2025 이유빈 · 굵게 없음 · 진한 밤색
 const fontOf = (f) => (FONTS.find((x) => x[0] === f) || FONTS.find((x) => x[0] === DEF_FONT))[1];
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 저장 안 돼도 괜찮음 */ } };
@@ -71,7 +71,7 @@ function cleanHTML(html, keepMark) {
   return walk(t.content, {});
 }
 const LW = 1400; // 기준 가로 칸 수 (교실 TV 판서 폭쯤: 글자 크기 140이 TV에서 대략 140px)
-const WB = { tool: 'text', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, shade: { c: NEON[0][0] }, erase: { w: 40 }, txt: { size: 110, bold: true, c: PEN[0], f: lsGet('wbFont2') || DEF_FONT }, range: null, rangeEd: null, marked: null, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
+const WB = { tool: 'text', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, shade: { c: NEON[0][0] }, erase: { w: 40 }, txt: { size: 110, bold: false, c: PEN[0], f: lsGet('wbFont3') || DEF_FONT }, range: null, rangeEd: null, marked: null, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
 const TXT_SIZES = [24, 32, 48, 64, 80, 100, 110, 140, 180, 240];
 let wbEl = null, wbWidgets = [], sync = null, pendingRemote = null;
 const fullCbs = [];
@@ -511,7 +511,7 @@ function buildWB() {
       WB.txt.bold = !WB.txt.bold; applySel(); renderOpts();
     };
     const tf = box.querySelector('[data-r="txFont"]');
-    if (tf) tf.onchange = () => { WB.txt.f = tf.value; lsSet('wbFont2', tf.value); if (WB.sel && WB.sel._t) { snap(WB.sel); WB.sel._t.f = tf.value; applyTxt(WB.sel); sendTxt(WB.sel); } renderOpts(); };
+    if (tf) tf.onchange = () => { WB.txt.f = tf.value; lsSet('wbFont3', tf.value); if (WB.sel && WB.sel._t) { snap(WB.sel); WB.sel._t.f = tf.value; applyTxt(WB.sel); sendTxt(WB.sel); } renderOpts(); };
     showSize();
   }
   wbEl.querySelectorAll('[data-tool]').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
