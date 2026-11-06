@@ -987,3 +987,12 @@ body.theme-sunset .wb-bell:active{box-shadow:0 2px 0 #B8485F}
 /* 글자 상자 여백을 글자 크기에 맞춰서 (휴대폰·TV에서 같은 자리) */
 .obj.txt{padding:0}
 .obj.txt [contenteditable]{padding:.02em .06em}
+
+/* 판서 글상자: 마우스가 상자 밖에 있으면 점선 테두리와 옮기기·✕·크기 동그라미를 숨김 (글을 쓰는 중에도).
+   마우스를 상자에 올리면 다시 보여요. 터치 화면(휴대폰·전자칠판 손가락)은 마우스가 없어서 예전처럼 보여요 */
+@media (hover:hover) and (pointer:fine){
+  .wb-canvas .obj.txt{transition:outline-color .15s}
+  .wb-canvas .obj.txt.sel:not(:hover){outline-color:transparent}
+  .wb-canvas .obj.txt .grip,.wb-canvas .obj.txt .del,.wb-canvas .obj.txt .hd{transition:opacity .15s}
+  .wb-canvas .obj.txt.sel:not(:hover) .grip,.wb-canvas .obj.txt.sel:not(:hover) .del,.wb-canvas .obj.txt.sel:not(:hover) .hd{opacity:0}
+}
