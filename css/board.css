@@ -1,3 +1,5 @@
+/* 윤독립체 (윤디자인 '독립체' · 상업용 무료, 웹 사용 허용) — 판서 글씨체 */
+@font-face{font-family:'Dokrip';src:url('../fonts/Dokrip.woff') format('woff');font-weight:normal;font-style:normal;font-display:swap}
 :root{
   --blue:#2B6CE6; --blue-soft:#E8F0FF; --blue-deep:#1B4DB3;
   --coral:#FF6B4A; --sun:#FFB020; --cream:#FFF5E1;

@@ -15,9 +15,10 @@ const FONTS = [
   ['gaegu', "'Gaegu', 'Noto Sans KR', sans-serif", '개구쟁이'],
   ['pen', "'Nanum Pen Script', 'Nanum Pen', 'Noto Sans KR', sans-serif", '나눔 손글씨 펜'],
   ['single', "'Single Day', 'Noto Sans KR', sans-serif", '싱글데이'],
+  ['dokrip', "'Dokrip', 'Noto Sans KR', sans-serif", '윤독립체'],
   ['basic', "'Noto Sans KR', system-ui, sans-serif", '반듯한 글씨 (예전)'],
 ];
-const DEF_FONT = 'poor';
+const DEF_FONT = 'gamja'; // 대표 글꼴: 감자꽃 · 굵게 · 진한 밤색
 const fontOf = (f) => (FONTS.find((x) => x[0] === f) || FONTS.find((x) => x[0] === DEF_FONT))[1];
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 저장 안 돼도 괜찮음 */ } };
@@ -70,7 +71,7 @@ function cleanHTML(html, keepMark) {
   return walk(t.content, {});
 }
 const LW = 1400; // 기준 가로 칸 수 (교실 TV 판서 폭쯤: 글자 크기 140이 TV에서 대략 140px)
-const WB = { tool: 'text', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, shade: { c: NEON[0][0] }, erase: { w: 40 }, txt: { size: 110, bold: false, c: PEN[0], f: lsGet('wbFont') || DEF_FONT }, range: null, rangeEd: null, marked: null, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
+const WB = { tool: 'text', pen: { c: PEN[0], w: 4 }, hl: { c: PASTEL[0], w: 28 }, shade: { c: NEON[0][0] }, erase: { w: 40 }, txt: { size: 110, bold: true, c: PEN[0], f: lsGet('wbFont2') || DEF_FONT }, range: null, rangeEd: null, marked: null, strokes: [], hist: [], sel: null, scale: 1, tvAr: 0 };
 const TXT_SIZES = [24, 32, 48, 64, 80, 100, 110, 140, 180, 240];
 let wbEl = null, wbWidgets = [], sync = null, pendingRemote = null;
 const fullCbs = [];
@@ -217,7 +218,7 @@ function buildWB() {
     const o = document.createElement('div'); o.className = 'obj ' + cls; o._id = id || uid(); o._g = { x, y };
     o.insertAdjacentHTML('beforeend', `<div class="grip">${ic('cursor')}옮기기</div><button class="del" title="지우기">${ic('x')}</button>`);
     objs.appendChild(o); WB.hist.push({ k: 'o', el: o });
-    o.querySelector('.del').onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); removeObj(o, true); };
+    o.querySelector('.del').onpointerdown = (e) => { e.preventDefault(); e.stopPropagation(); deleteObj(o); };
     o.querySelector('.grip').onpointerdown = (e) => drag(e, o, 'move');
     o.addEventListener('pointerdown', (e) => {
       if (WB.tool !== 'select' && WB.tool !== 'text' && WB.tool !== 'shade') return;
@@ -226,6 +227,51 @@ function buildWB() {
     });
     return o;
   }
+  /* ---------- 되돌리기 기록 ----------
+   * s: 그은 선 · o: 새로 만든 상자 · t: 상자를 바꾸기 전 모습(글자·꾸밈·크기·자리) · d: 지운 상자 */
+  function stateOf(o) {
+    const ed = o._t && o.querySelector('[contenteditable]');
+    return { g: { ...o._g }, t: o._t ? { ...o._t } : null, html: ed ? cleanHTML(ed.innerHTML) : null };
+  }
+  /** 바꾸기 직전에 부름. 같은 종류를 잇달아 바꾸면(글자 치기·크기 칸 입력) 한 번으로 묶어요 */
+  function snap(o, tag) {
+    if (!o || !o.isConnected) return;
+    const last = WB.hist[WB.hist.length - 1], now = Date.now();
+    if (tag && last && last.k === 't' && last.el === o && last.tag === tag && now - last.at < 1500) { last.at = now; return; }
+    WB.hist.push({ k: 't', el: o, tag, at: now, ...stateOf(o) });
+  }
+  function restore(o, st) {
+    o._g = { ...st.g }; if (st.t) o._t = { ...st.t };
+    if (st.html != null) { const ed = o.querySelector('[contenteditable]'); ed.innerHTML = st.html; }
+    if (WB.sel === o) forget();
+    place(o);
+    if (WB.sel === o && o._t && WB.tool === 'text') { WB.txt = { ...o._t }; renderOpts(); }
+    sendTxt(o);
+  }
+  function undo() {
+    // 크기 칸에 적던 값이 되돌린 뒤에 다시 들어가지 않게 (칸에서 나갈 때 한 번 더 적용되는 것 막기)
+    const ae = document.activeElement;
+    if (ae && ae.dataset && ae.dataset.r === 'txSize') { ae.onchange = null; ae.blur(); }
+    let h;
+    while ((h = WB.hist.pop())) {
+      if (h.k === 's') { const i = WB.strokes.findIndex((s) => s.id === h.id); if (i < 0) continue; WB.strokes.splice(i, 1); redraw(); if (sync) sync.del(h.id); return true; }
+      if (h.k === 'o') { if (!h.el.isConnected) continue; removeObj(h.el, true); return true; }
+      if (h.k === 'd') { if (h.el.isConnected) continue; objs.appendChild(h.el); place(h.el); h.el._at = Date.now(); sendTxt(h.el); return true; }
+      if (h.k === 't') {
+        if (!h.el.isConnected) continue;
+        const cur = stateOf(h.el);
+        if (JSON.stringify(cur) === JSON.stringify({ g: h.g, t: h.t, html: h.html })) continue; // 바뀐 게 없으면 하나 더 되돌림
+        if (h.html != null && !h.html.replace(/<[^>]+>/g, '').trim()) { removeObj(h.el, true); return true; } // 빈 상자로 돌아가면 상자를 지움
+        restore(h.el, h); return true;
+      }
+    }
+    toast('더 되돌릴 게 없어요');
+    return false;
+  }
+  WB.undo = undo;
+  /** 사용자가 상자를 지움 (되돌리기로 살릴 수 있게) */
+  function deleteObj(o) { if (!o || !o.isConnected) return; WB.hist.push({ k: 'd', el: o }); removeObj(o, true); }
+
   function removeObj(o, send) {
     o.remove(); if (WB.sel === o) select(null);
     if (send && sync && o._t) sync.del(o._id);
@@ -246,7 +292,12 @@ function buildWB() {
       else { const d = Math.abs(dx) > Math.abs(dy * ratio) ? dx : dy * ratio; o._g.w = Math.max(40, g0.w + d); o._g.h = o._g.w / ratio; }
       place(o);
     };
-    const up = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', up); sendTxt(o); };
+    const before = stateOf(o);
+    const up = () => {
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up);
+      if (JSON.stringify(stateOf(o)) !== JSON.stringify(before)) WB.hist.push({ k: 't', el: o, at: Date.now(), ...before });
+      sendTxt(o);
+    };
     addEventListener('pointermove', mv); addEventListener('pointerup', up);
   }
   function addImage(src) {
@@ -275,6 +326,14 @@ function buildWB() {
     if (data) { if (data.html) ed.innerHTML = cleanHTML(data.html); else ed.textContent = data.text || ''; }
     place(o);
     ed.addEventListener('paste', (e) => { const s = e.clipboardData.getData('text/plain'); if (s) { e.preventDefault(); document.execCommand('insertText', false, s); } });
+    // 글자 치기: 잠깐(1.5초) 쉬었다 다시 치면 그때마다 되돌릴 자리를 하나씩 남겨요 (새 상자의 첫 묶음은 '상자 만들기'로 되돌림)
+    if (!data) o._fresh = true;
+    ed.addEventListener('beforeinput', (e) => {
+      if (/^history/.test(e.inputType)) { e.preventDefault(); return; }
+      const now = Date.now();
+      if (!o._typeAt || now - o._typeAt > 1500) { if (o._fresh) o._fresh = false; else snap(o); }
+      o._typeAt = now;
+    });
     ed.addEventListener('input', () => { clearTimeout(o._tm); o._tm = setTimeout(() => sendTxt(o), 600); });
     ed.addEventListener('blur', () => { if (!ed.textContent.trim()) removeObj(o, true); else sendTxt(o); });
     ed.addEventListener('focus', () => select(o));
@@ -294,7 +353,7 @@ function buildWB() {
     ed.style.setProperty('--fs', t.size * WB.scale + 'px'); ed.style.fontSize = 'var(--fs)';
     ed.style.fontFamily = fontOf(t.f); ed.style.fontWeight = t.bold ? 900 : 500; ed.style.color = t.c;
   }
-  function applySel() { if (WB.sel && WB.sel.classList.contains('txt')) { WB.sel._t = { ...WB.txt }; applyTxt(WB.sel); sendTxt(WB.sel); } }
+  function applySel(tag) { if (WB.sel && WB.sel.classList.contains('txt')) { snap(WB.sel, tag || 'box'); WB.sel._t = { ...WB.txt }; applyTxt(WB.sel); sendTxt(WB.sel); } }
 
   /* ---------- 끌어서 고른 글자만 꾸미기 (크기·색·굵기·음영) ---------- */
   const edOf = (node) => { const el = node && (node.nodeType === 1 ? node : node.parentElement); const ed = el && el.closest('.obj.txt [contenteditable]'); return ed && wbEl.contains(ed) ? ed : null; };
@@ -327,6 +386,7 @@ function buildWB() {
     const ed = WB.rangeEd, o = ed && ed.closest('.obj');
     if (WB.marked && WB.marked.length && WB.marked.every((m) => m.isConnected)) { WB.marked.forEach(css); sendTxt(o); return true; }
     if (!hasRange()) return false;
+    snap(o);
     const r = WB.range, sc = r.startContainer, so = r.startOffset, ec = r.endContainer, eo = r.endOffset;
     const tw = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT), nodes = [];
     for (let n = tw.nextNode(); n; n = tw.nextNode()) if (n.length && r.intersectsNode(n)) nodes.push(n);
@@ -390,7 +450,7 @@ function buildWB() {
     objs.querySelectorAll('.obj.txt').forEach((o) => { if (!tids.has(o._id) && !pendingIds.has(o._id) && o._synced) removeObj(o, false); });
     T.forEach((d) => {
       let o = [...objs.querySelectorAll('.obj.txt')].find((x) => x._id === d.id);
-      if (!o) { o = addText(d.x, d.y, d); o._synced = true; o._at = d.at; return; }
+      if (!o) { o = addText(d.x, d.y, d); WB.hist = WB.hist.filter((h) => h.el !== o); o._synced = true; o._at = d.at; return; }
       o._synced = true;
       const ed = o.querySelector('[contenteditable]');
       if (document.activeElement === ed || pendingIds.has(d.id)) return; // 내가 쓰는 중이면 그대로
@@ -435,11 +495,11 @@ function buildWB() {
       const setSize = (fix) => {
         const v = Math.round(+ts.value); if (!v) return; const c = Math.max(10, Math.min(400, v)); if (fix) ts.value = c;
         if (WB.sel && hasRange() && WB.sel.contains(WB.rangeEd)) { styleRange({ r: c / WB.sel._t.size }); return; } // 고른 글자만
-        WB.txt.size = c; applySel();
+        WB.txt.size = c; applySel('size');
       };
       ts.oninput = () => setSize(false);
       ts.onchange = () => setSize(true);
-      ts.onkeydown = (e) => { if (e.key === 'Enter') { setSize(true); ts.blur(); } e.stopPropagation(); };
+      ts.onkeydown = (e) => { if (e.key === 'Enter') { setSize(true); ts.blur(); } if (!(e.ctrlKey || e.metaKey)) e.stopPropagation(); }; // Ctrl+Z는 판서 되돌리기로
     }
     // 음영 색 고르기 (이미 고른 글자가 있으면 바로 칠함)
     box.querySelectorAll('[data-neo]').forEach((b) => { b.onpointerdown = (e) => { e.preventDefault(); WB.shade.c = b.dataset.neo; shadeNow(); renderOpts(); }; });
@@ -451,17 +511,12 @@ function buildWB() {
       WB.txt.bold = !WB.txt.bold; applySel(); renderOpts();
     };
     const tf = box.querySelector('[data-r="txFont"]');
-    if (tf) tf.onchange = () => { WB.txt.f = tf.value; lsSet('wbFont', tf.value); if (WB.sel && WB.sel._t) { WB.sel._t.f = tf.value; applyTxt(WB.sel); sendTxt(WB.sel); } renderOpts(); };
+    if (tf) tf.onchange = () => { WB.txt.f = tf.value; lsSet('wbFont2', tf.value); if (WB.sel && WB.sel._t) { snap(WB.sel); WB.sel._t.f = tf.value; applyTxt(WB.sel); sendTxt(WB.sel); } renderOpts(); };
     showSize();
   }
   wbEl.querySelectorAll('[data-tool]').forEach((b) => { b.onclick = () => setTool(b.dataset.tool); });
-  q('undo').onclick = () => {
-    let h;
-    while ((h = WB.hist.pop())) {
-      if (h.k === 's') { const i = WB.strokes.findIndex((s) => s.id === h.id); if (i < 0) continue; WB.strokes.splice(i, 1); redraw(); if (sync) sync.del(h.id); return; }
-      if (h.el.isConnected) { removeObj(h.el, true); return; }
-    }
-  };
+  q('undo').onpointerdown = (e) => e.preventDefault(); // 글자를 쓰던 중에 눌러도 글자 상자가 닫히지 않게
+  q('undo').onclick = () => undo();
   WB.clearLocal = () => { WB.strokes = []; WB.hist = []; objs.innerHTML = ''; select(null); redraw(); };
   q('clear').onclick = () => { WB.clearLocal(); if (sync) sync.clear(); };
   q('img').onclick = () => q('file').click();
@@ -472,7 +527,7 @@ function buildWB() {
   q('bell').onclick = (e) => { e.stopPropagation(); if (bellFn) bellFn(); else ringWbBell(); };
   area.addEventListener('dragover', (e) => e.preventDefault());
   area.addEventListener('drop', (e) => { e.preventDefault(); const f = [...e.dataTransfer.files].find((x) => x.type.startsWith('image/')); if (f) addImage(URL.createObjectURL(f)); });
-  WB.del = () => { if (WB.sel) removeObj(WB.sel, true); };
+  WB.del = () => { if (WB.sel) deleteObj(WB.sel); };
   drawWbWidgets();
   setTool('text'); // 판서를 열면 글자 쓰기부터 (교사용 노트북·휴대폰 모두)
   if (pendingRemote) { const [l, p] = pendingRemote; pendingRemote = null; WB.applyRemote(l, p || new Set()); }
@@ -500,6 +555,12 @@ document.addEventListener('keydown', (e) => {
   if (!wbEl || !wbEl.isConnected) return;
   const editing = document.activeElement && document.activeElement.isContentEditable;
   if (e.key === 'Escape' && wbIsFull()) setWbFull(false);
+  // Ctrl+Z (맥은 ⌘+Z): 판서 되돌리기 — 글자를 쓰는 중에도 판서 기록으로 되돌려요
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z' || e.code === 'KeyZ') && wbEl.getClientRects().length) {
+    const ae = document.activeElement;
+    if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && !wbEl.contains(ae)) return; // 설정 창 등 다른 입력 칸은 원래대로
+    e.preventDefault(); WB.undo();
+  }
   if ((e.key === 'Delete' || e.key === 'Backspace') && !editing && WB.sel && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); WB.del(); }
 });
 document.addEventListener('paste', (e) => {
