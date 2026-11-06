@@ -17,7 +17,7 @@ const FONTS = [
   ['single', "'Single Day', 'Noto Sans KR', sans-serif", '싱글데이'],
   ['basic', "'Noto Sans KR', system-ui, sans-serif", '반듯한 글씨 (예전)'],
 ];
-const DEF_FONT = 'gamja';
+const DEF_FONT = 'poor';
 const fontOf = (f) => (FONTS.find((x) => x[0] === f) || FONTS.find((x) => x[0] === DEF_FONT))[1];
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* 저장 안 돼도 괜찮음 */ } };
