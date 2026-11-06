@@ -557,7 +557,13 @@ function startLive() {
     const fresh = (k) => d[k] && d[k].at !== seen[k] && d[k].dev !== DEV && (seen[k] = d[k].at, true);
     if (d.bell && fresh('bell') && Date.now() - d.bell.at < 15000 && d.bell.at > LIVE.started - 1000) ringNow(d.bell.i);
     if (d.wb && fresh('wb')) { setWbOn(!!d.wb.on, false); if (d.wb.on && d.wb.full && !isPhone()) requestAnimationFrame(() => setWbFull(true)); }
-    if (d.timer && d.timer.dev !== DEV && d.timer.v !== seen.timer) { seen.timer = d.timer.v; if (d.timer.v > LIVE.started - 1000 || d.timer.running) applyRemoteTimer(d.timer); }
+    // 타이머: 이 화면을 연 뒤에 다른 화면에서 바꾼 것만 따라가요.
+    // 열기 전 기록은 '지금도 실제로 돌아가는 중'일 때만 이어받아요 (이미 끝난 옛 타이머가 열자마자 알람을 울리지 않게)
+    if (d.timer && d.timer.dev !== DEV && d.timer.v !== seen.timer) {
+      seen.timer = d.timer.v;
+      const live = d.timer.running && d.timer.endAt > Date.now() + 1000;
+      if (d.timer.v > LIVE.started - 1000 || live) applyRemoteTimer(d.timer);
+    }
     if (d.scr) setTvRatio(d.scr.ar);
     if (d.pin && fresh('pin') && d.pin.date === S.dateKey && Date.now() - d.pin.at < 10 * 60 * 1000) { if (d.pin.pi == null) { if (S.pin != null) pinTo(null, false); } else if (S.pin !== d.pin.pi) pinTo(d.pin.pi, false); }
   }, () => {});
