@@ -8,18 +8,27 @@ const SUBJECTS = {
   사회: { items: ['사회 교과서', '사회과 부도'], tasks: ['지도 색칠하기'] },
   과학: { items: ['과학 교과서', '실험 관찰', '돋보기'], tasks: ['실험 관찰 18쪽', '관찰 그림', '결과 쓰기', '모둠 발표 준비', '정리 퀴즈'] },
 };
-const TIMES = [['09:00', '09:40'], ['09:50', '10:30'], ['10:40', '11:20'], ['12:10', '12:50']];
+/** 정해진 시간표 칸: 교시를 넣거나 빼면 이 시간에 맞춰져요 */
+export const SLOTS = {
+  am: ['08:40', '09:00'],
+  1: ['09:00', '09:40'], 2: ['09:50', '10:30'], 3: ['10:40', '11:20'], 4: ['11:30', '12:10'], 5: ['12:20', '13:00'],
+  lu: ['13:00', '13:50'],
+  6: ['13:50', '14:30'],
+};
+export const MAX_PERIODS = 6;
+export const LUNCH_AFTER = 5; // 점심시간은 5교시 뒤
+const TIMES = [1, 2, 3, 4].map((n) => SLOTS[n]);
 const ORDER = { 1: ['국어', '수학', '사회', '과학'], 2: ['수학', '국어', '과학', '사회'], 3: ['사회', '과학', '국어', '수학'], 4: ['과학', '사회', '수학', '국어'], 5: ['국어', '과학', '수학', '사회'] };
 
 export const SAMPLE_ROSTER = ['김하늘', '이서준', '박도윤', '최지우', '정예린', '강민준', '조하은', '윤시우', '장서연', '임주원'];
 
 /** 1교시 전 아침 시간 (과제·판서를 쓸 수 있는 칸) */
-export function morningPeriod(start = '08:40', end = '09:00', tasks = []) {
+export function morningPeriod(start = SLOTS.am[0], end = SLOTS.am[1], tasks = []) {
   return { name: '아침 시간', morning: true, start, end, subject: '아침 활동', items: [], tasks };
 }
 export const isMorning = (p) => !!(p && p.morning);
 /** 점심시간 칸 (아침 시간처럼 과제·판서를 쓸 수 있음) */
-export function lunchPeriod(start = '12:10', end = '13:00', tasks = []) {
+export function lunchPeriod(start = SLOTS.lu[0], end = SLOTS.lu[1], tasks = []) {
   return { name: '점심시간', lunch: true, start, end, subject: '점심 활동', items: [], tasks };
 }
 export const isLunch = (p) => !!(p && p.lunch);

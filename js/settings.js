@@ -1,6 +1,6 @@
 // 설정 창: 요일별 시간표 · 오늘만 바꾸기 · 학생 명단 · 소리 · 초기화
 import { ic, esc, toast, confirmBox } from './ui.js';
-import { WEEKDAYS, clone, sampleConfig, toSec, morningPeriod, isMorning, lunchPeriod, isLunch, isSpecial } from './data.js';
+import { WEEKDAYS, clone, sampleConfig, toSec, morningPeriod, isMorning, lunchPeriod, isLunch, isSpecial, SLOTS, MAX_PERIODS, LUNCH_AFTER } from './data.js';
 import { BELLS, ringBell, setVolume } from './sound.js';
 
 let ctx = null; // { cfg(), day(), todayWd(), saveCfg(), saveDay(), applyAll(), guest(), resetAll() }
@@ -66,7 +66,9 @@ function tableBody() {
     : `매주 ${WEEKDAYS[+dayKey]}요일에 쓰는 기본 시간표예요.${+dayKey === wd && !(ctx.day() && ctx.day().custom) ? ' 오늘 시간표에도 바로 반영돼요.' : ''}`;
   return `<div class="days">${days.map(([k, n]) => `<button data-d="${k}" class="${dayKey === k ? 'sel' : ''} ${k === 'today' ? 'today' : ''}">${n}</button>`).join('')}</div>
     <p class="hint">${note} 과제는 적은 순서대로 정류장이 돼요.</p>
-    <p class="hint">${ic('grip')} 손잡이를 끌면 교시(과목·과제)나 과제·준비물 순서를 옮길 수 있어요. 시간은 그 자리에 그대로 있어요. 교시를 누르고 <b>교시 추가</b>를 누르면 그 바로 뒤에 들어가요.</p>
+    <p class="hint">${ic('grip')} 손잡이를 끌면 교시(과목·과제)나 과제·준비물 순서를 옮길 수 있어요. 교시를 누르고 <b>교시 추가</b>를 누르면 그 바로 뒤에 들어가요. 시간은 정해진 칸에 저절로 맞춰져요.</p>
+    <p class="hint slots">${ic('clock')} ${slotList()}</p>
+    ${offSlots() ? `<div class="offslot">${ic('clock')}<span>정해진 시간과 다른 칸이 <b>${offSlots()}개</b> 있어요.</span><button class="btn ghost" data-a="fix">정해진 시간으로 맞추기</button></div>` : ''}
     ${draft.length ? draft.map((p, i) => periodRow(p, i)).join('') : '<p class="hint">교시가 없어요. 아래 \'교시 추가\'를 눌러 주세요.</p>'}`;
 }
 function listUI(arr, kind, i) {
@@ -97,7 +99,6 @@ function periodRow(p, i) {
         ${p.mode === 'pick' ? `<label class="need">완료 기준 <input type="number" min="1" max="${Math.max(1, (p.tasks || []).length)}" data-f="need" value="${esc(p.need || (p.tasks || []).length || 1)}">개</label>` : ''}</div>
       ${listUI(p.tasks || [], 'tasks', i)}</div></div></div>`;
 }
-const fmt = (s) => `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}`;
 const SLOT = ['name', 'start', 'end', 'morning', 'lunch']; // 칸(시간 자리)에 붙어 있는 것. 나머지(과목·준비물·과제·방식)는 끌면 따라 움직여요
 const content = (p) => Object.fromEntries(Object.entries(p).filter(([k]) => !SLOT.includes(k)));
 const slotOf = (p) => Object.fromEntries(Object.entries(p).filter(([k]) => SLOT.includes(k)));
@@ -107,28 +108,39 @@ function renumber() {
   draft.forEach((p) => { if (isSpecial(p)) return; n++; if (/^\d+교시$/.test(p.name)) p.name = `${n}교시`; });
 }
 
-/** 고른 칸 바로 뒤에 교시를 넣고, 그 뒤 칸들은 넣은 만큼 시간을 미뤄요 */
-function addAfter(i) {
-  const base = draft[i];
-  draft.sort((a, b) => toSec(a.start) - toSec(b.start));
-  const at = draft.indexOf(base), next = draft[at + 1];
-  const bEnd = toSec(base.end);
-  // 쉬는 시간: 바로 뒤가 교시면 원래 있던 만큼, 아니면(점심·마지막) 평소 교시 사이 쉬는 시간 (없으면 10분)
-  const reg = draft.filter((p) => !isSpecial(p)), gaps = [];
-  for (let k = 0; k < reg.length - 1; k++) { const g = toSec(reg[k + 1].start) - toSec(reg[k].end); if (g > 0 && g <= 1800) gaps.push(g); }
-  const usual = gaps.length ? gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 600;
-  let gap = next && !isSpecial(base) && !isSpecial(next) ? toSec(next.start) - bEnd : usual;
-  if (gap < 0 || gap > 1800) gap = usual;
-  const dur = !isSpecial(base) && bEnd > toSec(base.start) ? bEnd - toSec(base.start) : 2400; // 길이는 고른 교시와 같게 (아침·점심 뒤면 40분)
-  const st = bEnd + gap, shift = dur + gap;
-  for (let k = at + 1; k < draft.length; k++) { draft[k].start = fmt(toSec(draft[k].start) + shift); draft[k].end = fmt(toSec(draft[k].end) + shift); }
-  const item = { name: '0교시', start: fmt(st), end: fmt(st + dur), subject: '', items: [], tasks: [] };
-  draft.splice(at + 1, 0, item); renumber();
-  pick = at + 1; draw();
+/** 정해진 칸 순서로 줄 세우고 시간을 맞춤: 아침 → 1~5교시 → 점심 → 6교시 */
+function fixed(list) {
+  const am = list.filter(isMorning), lu = list.filter(isLunch), reg = list.filter((p) => !isSpecial(p));
+  let n = 0;
+  reg.forEach((p) => { n++; if (/^\d+교시$/.test(p.name)) p.name = `${n}교시`; const t = SLOTS[Math.min(n, MAX_PERIODS)]; p.start = t[0]; p.end = t[1]; });
+  am.forEach((p) => { [p.start, p.end] = SLOTS.am; });
+  lu.forEach((p) => { [p.start, p.end] = SLOTS.lu; });
+  const at = Math.min(LUNCH_AFTER, reg.length);
+  return [...am, ...reg.slice(0, at), ...lu, ...reg.slice(at)];
+}
+function fixTimes() { const keep = draft[pick]; draft = fixed(draft); pick = keep ? draft.indexOf(keep) : -1; }
+/** 정해진 시간과 다른 칸 수 */
+function offSlots() {
+  const c = fixed(clone(draft));
+  return draft.filter((p, k) => !c[k] || c[k].start !== p.start || c[k].end !== p.end || c[k].name !== p.name).length;
+}
+const slotList = () => `아침 ${SLOTS.am.join('~')} · ${[1, 2, 3, 4, 5].map((n) => `${n}교시 ${SLOTS[n][0]}`).join(' · ')} · 점심 ${SLOTS.lu.join('~')} · 6교시 ${SLOTS[6][0]}`;
+
+/** 고른 칸 바로 뒤(안 고르면 맨 뒤)에 교시를 넣고, 정해진 시간에 맞춰요 */
+function addPeriod(i) {
+  const reg = draft.filter((p) => !isSpecial(p));
+  if (reg.length >= MAX_PERIODS) { toast(`${MAX_PERIODS}교시까지만 넣을 수 있어요. 필요 없는 교시를 지우거나 끌어서 바꿔 주세요`, 4000); return false; }
+  const base = i >= 0 ? draft[i] : null;
+  // 몇 번째 교시 자리에 들어갈지: 고른 칸까지(포함) 있는 교시 수
+  const pos = base ? draft.slice(0, i + 1).filter((p) => !isSpecial(p)).length : reg.length;
+  const item = { name: '0교시', start: '', end: '', subject: '', items: [], tasks: [] };
+  reg.splice(pos, 0, item);
+  draft = fixed([...draft.filter(isSpecial), ...reg]);
+  pick = draft.indexOf(item); draw();
   const row = modal.querySelector(`.prow[data-i="${pick}"]`); if (row) { row.classList.add('new'); row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-  const late = draft[draft.length - 1];
-  toast(at + 2 < draft.length ? `${base.name} 뒤에 ${item.name}(${item.start}~${item.end})를 넣고, 뒤 칸들을 ${Math.round(shift / 60)}분씩 미뤘어요${toSec(late.end) > 17 * 3600 ? '. 끝나는 시간이 늦어졌는지 확인해 주세요' : ''}`
-    : `${base.name} 뒤에 ${item.name}(${item.start}~${item.end})를 넣었어요`, 4200);
+  const moved = reg.length - 1 - pos;
+  toast(`${base ? `${base.name} 뒤에 ` : ''}${item.name}(${item.start}~${item.end})를 넣었어요${moved > 0 ? `. 뒤 ${moved}개 교시는 한 칸씩 밀려 정해진 시간에 맞췄어요` : ''}`, 4200);
+  return true;
 }
 
 /* ---------- 끌어서 옮기기 (마우스·터치 모두) ---------- */
@@ -235,9 +247,13 @@ function bindTable(box) {
     });
     row.querySelectorAll('[data-tf]').forEach((ts) => {
       const sel = (k) => ts.querySelector(`[data-part=${k}]`);
-      ts.querySelectorAll('select').forEach((x) => { x.onchange = () => { draft[i][ts.dataset.tf] = `${String(sel('h').value).padStart(2, '0')}:${String(sel('m').value).padStart(2, '0')}`; mark(); }; });
+      ts.querySelectorAll('select').forEach((x) => { x.onchange = () => { draft[i][ts.dataset.tf] = `${String(sel('h').value).padStart(2, '0')}:${String(sel('m').value).padStart(2, '0')}`; mark(); draw(); }; });
     });
-    row.querySelector('[data-delp]').onclick = () => { draft.splice(i, 1); pick = -1; mark(); draw(); };
+    row.querySelector('[data-delp]').onclick = () => {
+      const was = draft[i]; draft.splice(i, 1); pick = -1;
+      draft = fixed(draft); mark(); draw();
+      if (!isSpecial(was)) toast(`${was.name}${was.subject ? `(${was.subject})` : ''}를 지우고 뒤 교시를 한 칸씩 당겼어요`);
+    };
     row.querySelectorAll('.tlist').forEach((tl) => {
       const kind = tl.dataset.list, arr = draft[i][kind] = draft[i][kind] || [];
       tl.querySelectorAll('input[data-k]').forEach((inp) => { inp.oninput = () => { arr[+inp.dataset.k] = inp.value; mark(); }; });
@@ -248,39 +264,19 @@ function bindTable(box) {
   });
   box.querySelectorAll('[data-grip=p]').forEach((g) => { g.onpointerdown = (e) => dragPeriod(e, box, g.closest('.prow'), mark); });
   box.querySelectorAll('[data-grip=it]').forEach((g) => { g.onpointerdown = (e) => dragItem(e, box, g.closest('.it'), mark); });
-  box.querySelector('[data-a=addp]').onclick = () => {
-    if (pick >= 0 && draft[pick]) { addAfter(pick); mark(); return; }
-    const last = draft[draft.length - 1];
-    const st = last ? Math.ceil((toSec(last.end) + 600) / 300) * 300 : 9 * 3600;
-    draft.push({ name: `${draft.filter((p) => !isSpecial(p)).length + 1}교시`, start: fmt(st), end: fmt(st + 2400), subject: '', items: [], tasks: [] });
-    mark(); draw(); // 보던 자리는 그대로, 새 교시는 맨 아래에 생겨요
-    const rows = modal.querySelectorAll('.prow'); rows[rows.length - 1].classList.add('new');
-    toast(`${draft[draft.length - 1].name}를 맨 아래에 추가했어요`);
-  };
+  box.querySelector('[data-a=addp]').onclick = () => { if (addPeriod(pick >= 0 && draft[pick] ? pick : -1)) mark(); };
+  const fx = box.querySelector('[data-a=fix]');
+  if (fx) fx.onclick = () => { const n = offSlots(); fixTimes(); mark(); draw(); toast(`${n}개 칸을 정해진 시간으로 맞췄어요. 저장을 눌러야 반영돼요`, 3500); };
   const am = box.querySelector('[data-a=addam]');
   if (am) am.onclick = () => {
-    const first = [...draft].sort((a, b) => toSec(a.start) - toSec(b.start))[0];
-    const end = first ? Math.min(toSec(first.start), 9 * 3600) : 9 * 3600;
-    draft.unshift(morningPeriod(fmt(end - 1200), fmt(end))); mark();
+    draft.unshift(morningPeriod()); fixTimes(); mark();
     draw(); modal.querySelector('.set-b').scrollTop = 0;
   };
   const lu = box.querySelector('[data-a=addlu]');
   if (lu) lu.onclick = () => {
-    // 교시 사이의 가장 긴 빈 시간(30분 이상)에 넣음. 없으면 12시쯤 끝나는 교시 뒤에 50분
-    const P = draft.map((p, i) => ({ p, i, s: toSec(p.start), e: toSec(p.end) })).sort((a, b) => a.s - b.s);
-    let best = null;
-    for (let k = 0; k < P.length - 1; k++) { const gap = P[k + 1].s - P[k].e; if (gap >= 1800 && (!best || gap > best.gap)) best = { gap, s: P[k].e, e: P[k + 1].s }; }
-    let st, en, note = '';
-    if (best) { st = best.s; en = best.e; }
-    else {
-      const ref = P.filter((x) => !isSpecial(x.p)).sort((a, b) => Math.abs(a.e - 12 * 3600) - Math.abs(b.e - 12 * 3600))[0];
-      st = ref ? ref.e : 12 * 3600; en = st + 3000; note = ' 뒤 교시와 시간이 겹치지 않는지 확인해 주세요';
-    }
-    const item = lunchPeriod(fmt(st), fmt(en));
-    let at = draft.findIndex((p) => toSec(p.start) >= en); if (at < 0) at = draft.length;
-    draft.splice(at, 0, item); mark(); draw();
-    const row = modal.querySelector(`.prow[data-i="${at}"]`); if (row) { row.classList.add('new'); row.scrollIntoView({ block: 'nearest' }); }
-    toast(`점심시간(${item.start}~${item.end})을 넣었어요.${note}`, note ? 4500 : 2600);
+    const item = lunchPeriod(); draft.push(item); fixTimes(); mark(); draw();
+    const at = draft.indexOf(item), row = modal.querySelector(`.prow[data-i="${at}"]`); if (row) { row.classList.add('new'); row.scrollIntoView({ block: 'nearest' }); }
+    toast(`점심시간(${item.start}~${item.end})을 ${LUNCH_AFTER}교시 뒤에 넣었어요`);
   };
   box.querySelector('[data-a=savet]').onclick = () => {
     const bad = draft.find((p) => !p.start || !p.end || toSec(p.end) <= toSec(p.start));
