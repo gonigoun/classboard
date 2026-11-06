@@ -1,4 +1,6 @@
 /* 윤독립체 (윤디자인 '독립체' · 상업용 무료, 웹 사용 허용) — 판서 글씨체 */
+/* 교보 손글씨 2025 이유빈 (교보문고 · 상업용 무료, 웹서버용 사용 허용) — 판서 대표 글꼴. 눈누 공식 웹폰트 주소 */
+@font-face{font-family:'KyoboHandwriting2025lyb';src:url('https://cdn.jsdelivr.net/gh/projectnoonnu/2604-1@1.1/KyoboHandwriting2025lyb.woff2') format('woff2');font-weight:normal;font-style:normal;font-display:swap}
 @font-face{font-family:'Dokrip';src:url('../fonts/Dokrip.woff') format('woff');font-weight:normal;font-style:normal;font-display:swap}
 :root{
   --blue:#2B6CE6; --blue-soft:#E8F0FF; --blue-deep:#1B4DB3;
