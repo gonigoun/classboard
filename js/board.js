@@ -287,10 +287,7 @@ function lunchNow() {
 const lunchKey = () => 'cb:lunchSel:' + S.dateKey;
 function lunchSel() {
   try { const v = JSON.parse(localStorage.getItem(lunchKey())); if (Array.isArray(v)) return v; } catch (e) { /* 저장 막힘 */ }
-  // 처음에는 점심 전까지의 과제 + 점심시간 자체 과제를 모두 골라 둠
-  const T = table(), ph = S.phase, cut = ph.kind === 'break' ? T[ph.next].start : T[ph.cur].start;
-  const pre = T.map((p, pi) => [p, pi]).filter(([p, pi]) => tasksOf(p).length && (pi === ph.cur || p.start < cut)).map(([, pi]) => pi);
-  return pre.length ? pre : T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length).map(([, pi]) => pi);
+  return []; // 처음에는 아무것도 고르지 않음 (선생님이 그날 다시 볼 교시를 직접 고름)
 }
 function setLunchSel(v) { try { localStorage.setItem(lunchKey(), JSON.stringify(v)); } catch (e) { /* 저장 막힘 */ } }
 /** 여러 교시를 한 줄로 보는 때(수업 끝·점심시간)에 보여 줄 교시들 */
@@ -390,7 +387,7 @@ function drawTasks(animate) {
   el.classList.toggle('wbbar', bar);
   let body;
   if (!periods.length) {
-    body = `<div class="lsel-empty">위에서 볼 교시를 골라 주세요</div>`;
+    body = `<div class="lsel-empty">위 <b>볼 과제 고르기</b>에서 다시 볼 교시를 눌러 주세요</div>`;
   } else if (useGrid) {
     // 골라서 하는 과제: 학생 × 과제 표, 칸을 눌러 체크
     body = `<div class="tgrid"><table><thead>${multi ? `<tr><th></th>${periods.map(([p]) => `<th colspan="${tasksOf(p).length}" class="pg">${esc(p.name)} ${esc(p.subject)}${isPick(p) ? ` · ${needOf(p)}개` : ''}</th>`).join('')}<th></th></tr>` : ''}
