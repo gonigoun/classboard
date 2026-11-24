@@ -22,10 +22,11 @@ export function isChecked(p, mark, pi, ti) {
 }
 
 /** 체크 바꾸기 (새 mark를 돌려줌) */
-export function withPos(mark, pi, v) { const m = clone(mark); m.p[pi] = Math.max(0, v); return m; }
-export function withToggle(mark, pi, ti) { const m = clone(mark); m.k[pi] = (maskOf(m, pi) ^ (1 << ti)) >>> 0; return m; }
-export function withReset(mark, pi) { const m = clone(mark); delete m.p[pi]; delete m.k[pi]; return m; }
-function clone(mark) { return { p: { ...((mark || {}).p || {}) }, k: { ...((mark || {}).k || {}) } }; }
+// t = 마지막으로 체크를 바꾼 시각 (같은 정류장에서 먼저 온 친구를 앞에 보여 줄 때 씀)
+export function withPos(mark, pi, v) { const m = clone(mark); m.p[pi] = Math.max(0, v); m.t = Date.now(); return m; }
+export function withToggle(mark, pi, ti) { const m = clone(mark); m.k[pi] = (maskOf(m, pi) ^ (1 << ti)) >>> 0; m.t = Date.now(); return m; }
+export function withReset(mark, pi) { const m = clone(mark); delete m.p[pi]; delete m.k[pi]; m.t = 0; return m; }
+function clone(mark) { return { p: { ...((mark || {}).p || {}) }, k: { ...((mark || {}).k || {}) }, t: +((mark || {}).t || 0) }; }
 
 /** 학생 화면·선생님 보드에서 "지금 할 과제" (순서대로일 때) */
 export function nextTask(p, mark, pi) {

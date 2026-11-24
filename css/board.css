@@ -996,3 +996,14 @@ body.theme-sunset .wb-bell:active{box-shadow:0 2px 0 #B8485F}
   .wb-canvas .obj.txt .grip,.wb-canvas .obj.txt .del,.wb-canvas .obj.txt .hd{transition:opacity .15s}
   .wb-canvas .obj.txt.sel:not(:hover) .grip,.wb-canvas .obj.txt.sel:not(:hover) .del,.wb-canvas .obj.txt.sel:not(:hover) .hd{opacity:0}
 }
+
+/* 판서 크게 보기: 과제 현황을 아래쪽 접힌 바로 (누르면 위로 펼쳐짐) */
+body.wb-tasks .wb-wrap.full{bottom:50px}
+.tasks.wbbar{background:#fff;backdrop-filter:none;-webkit-backdrop-filter:none;position:fixed;left:0;right:0;bottom:0;z-index:101;max-height:60vh;overflow:auto;border-radius:18px 18px 0 0;margin:0;box-shadow:0 -6px 24px rgba(40,30,60,.18)}
+.tasks.wbbar.closed{overflow:hidden}
+.tasks.wbbar .tasks-head{padding:8px 20px}
+.tasks.wbbar .tasks-head h2{font-size:22px}
+.tasks.wbbar .tasks-head .cnt{font-size:17px}
+.tasks.wbbar.closed .tasks-head .chev{transform:rotate(180deg)}
+.tasks.wbbar:not(.closed) .tasks-head .chev{transform:none}
+.tasks.wbbar.closed .prog{position:absolute;left:0;right:0;bottom:0;margin:0;height:5px;border-radius:0}

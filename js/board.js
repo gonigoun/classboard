@@ -25,6 +25,7 @@ const S = {
   phase: { kind: 'none' },
   wbOn: false,
   tasksFull: false,
+  wbTasksOpen: false,  // 판서 크게 보기 아래 과제 바를 펼쳤는지
   pin: null,           // 위쪽 시간표에서 눌러 다시 보는 교시 (null이면 지금 시간대로)
   pinLive: '',
   saveState: 'ok',
@@ -91,7 +92,7 @@ async function loadToday() {
     S.unsubs.forEach((u) => u()); S.unsubs = [];
     S.unsubs.push(store.watchMarks(S.user.uid, key, (rows) => {
       const t = Date.now();
-      rows.forEach((r) => { if (!S.recent[r.id] || t - S.recent[r.id] > 2500) S.marks[r.id] = { p: r.p || {}, k: r.k || {} }; });
+      rows.forEach((r) => { if (!S.recent[r.id] || t - S.recent[r.id] > 2500) S.marks[r.id] = { p: r.p || {}, k: r.k || {}, t: r.t || 0 }; });
       drawTasks(true);
     }, () => {}));
     // 다른 화면에서 '오늘만 바꾸기'를 하면 여기도 바뀜
@@ -259,7 +260,9 @@ function setWbOn(on, mine) {
   if (mine && !guest()) store.setLive(S.user.uid, { wb: { on, full: isPhone(), at: Date.now(), dev: DEV } }).catch(() => {});
 }
 // 휴대폰에서는 판서를 화면 가득 띄우고, '판서 닫기'를 누르면 판서를 끔
-onWbFull((on) => { if (!on && isPhone() && S.wbOn) setWbOn(false, true); if (on || !isPhone()) publishRatio(); });
+onWbFull((on) => { if (!on && isPhone() && S.wbOn) setWbOn(false, true); if (on || !isPhone()) publishRatio(); S.wbTasksOpen = false; drawTasks(); });
+/** 판서를 크게 볼 때(노트북·TV) 과제 현황을 아래쪽 접힌 바로 보여 줌 */
+function wbBar() { return wbIsFull() && !isPhone() && !S.tasksFull; }
 function tickBreak() {
   const ph = S.phase; if (ph.kind !== 'break') return;
   const tv = $('#stage [data-r=tv]');
@@ -324,6 +327,7 @@ let lastDoneAll = false;
 function drawTasks(animate) {
   const el = $('#tasks');
   $$('.w[data-w=tasks]').forEach((b) => b.classList.toggle('on', S.cfg.showTasks));
+  document.body.classList.remove('wb-tasks'); el.classList.remove('wbbar');
   if (!tasksVisible()) {
     if (S.tasksFull) setTasksFull(false);
     // 과제 현황을 꺼 두었는데 지금 과제가 있으면, 얇은 줄로 알려 주고 바로 켤 수 있게
@@ -344,8 +348,11 @@ function drawTasks(animate) {
   const done = names.filter((n, k) => n && doneAll(k)).length, total = names.filter((n) => n).length; // 명단 빈 번호는 빼고 셈
   const title = ph.kind === 'end' ? '오늘 과제' : `${T[tpi].name} 과제${isPick(T[tpi]) ? ` · 골라서 ${needOf(T[tpi])}개` : ''}`;
   const before = animate && !useGrid ? rects() : null;
-  el.classList.toggle('closed', S.cfg.tasksClosed && !S.tasksFull);
+  const bar = wbBar(), closed = bar ? !S.wbTasksOpen : S.cfg.tasksClosed && !S.tasksFull;
+  document.body.classList.toggle('wb-tasks', bar);
+  el.classList.toggle('closed', closed);
   el.classList.toggle('full', S.tasksFull);
+  el.classList.toggle('wbbar', bar);
   let body;
   if (useGrid) {
     // 골라서 하는 과제: 학생 × 과제 표, 칸을 눌러 체크
@@ -356,10 +363,12 @@ function drawTasks(animate) {
         <td class="fin">${doneAll(k) ? '완료' : ''}</td></tr>`)).join('')}</tbody></table></div>`;
   } else {
     const V = lineView(), last = V.last, P = names.map((_, k) => V.pos(k));
+    // 한 정류장 안에서는 먼저 도착한 친구가 앞에 (아직 안 움직인 친구는 번호순)
+    const order = names.map((_, k) => k).sort((a, b) => (markOf(a).t || 0) - (markOf(b).t || 0) || a - b);
     body = `<div class="track ${V.day ? 'day' : ''}">
       ${V.stations.map((s, i) => `<div class="st ${i === last ? 'fin' : ''} ${V.day && s.p && (i === 0 || V.stations[i - 1].pi !== s.pi) ? 'pstart' : ''}">
         <div class="mark">${i === last ? ic('flag') : i + 1}</div><div class="lbl">${s.p ? `<small class="pt">${esc(s.p)}</small>` : ''}${esc(s.label)}</div>
-        <div class="tags">${names.map((n, k) => (n && P[k] === i ? `<span class="tag${phoneDot(k)}" data-k="${k}"><small>${k + 1}</small>${esc(n)}</span>` : '')).join('')}</div>
+        <div class="tags">${order.map((k) => [names[k], k]).map(([n, k]) => (n && P[k] === i ? `<span class="tag${phoneDot(k)}" data-k="${k}"><small>${k + 1}</small>${esc(n)}</span>` : '')).join('')}</div>
       </div>`).join('')}</div>`;
     el._V = V;
   }
@@ -367,18 +376,21 @@ function drawTasks(animate) {
     <div class="tasks-head" data-a="th">
       <h2>${esc(title)}</h2><span class="cnt num">${done}/${total}</span>
       <span class="sp"></span>
-      <button class="reset" data-a="full">${ic('full')}${S.tasksFull ? '원래 크기' : '크게 보기'}</button>
+      ${bar ? '' : `<button class="reset" data-a="full">${ic('full')}${S.tasksFull ? '원래 크기' : '크게 보기'}</button>`}
       <button class="reset" data-a="reset">${ic('reset')}${ph.kind === 'end' ? '오늘 과제 현황 초기화' : '이 과제 현황 초기화'}</button>
       ${S.tasksFull ? '' : '<svg class="i chev"><use href="#i-chev"/></svg>'}
     </div>
-    <div class="prog" style="${S.cfg.tasksClosed && !S.tasksFull ? '' : 'display:none'}"><i style="width:${total ? done / total * 100 : 0}%"></i></div>
+    <div class="prog" style="${closed ? '' : 'display:none'}"><i style="width:${total ? done / total * 100 : 0}%"></i></div>
     <div class="tasks-body"><div>${body}</div></div>`;
   el.querySelector('[data-a=th]').onclick = (e) => {
     if (e.target.closest('button') || S.tasksFull) return;
-    S.cfg.tasksClosed = !S.cfg.tasksClosed; el.classList.toggle('closed', S.cfg.tasksClosed);
-    el.querySelector('.prog').style.display = S.cfg.tasksClosed ? '' : 'none'; saveCfg();
+    let c;
+    if (wbBar()) { S.wbTasksOpen = !S.wbTasksOpen; c = !S.wbTasksOpen; } // 판서 아래 바는 잠깐만 펼침 (설정에 저장 안 함)
+    else { S.cfg.tasksClosed = !S.cfg.tasksClosed; c = S.cfg.tasksClosed; saveCfg(); }
+    el.classList.toggle('closed', c);
+    el.querySelector('.prog').style.display = c ? '' : 'none';
   };
-  el.querySelector('[data-a=full]').onclick = (e) => { e.stopPropagation(); setTasksFull(!S.tasksFull); };
+  const fb = el.querySelector('[data-a=full]'); if (fb) fb.onclick = (e) => { e.stopPropagation(); setTasksFull(!S.tasksFull); };
   el.querySelector('[data-a=reset]').onclick = async (e) => {
     e.stopPropagation();
     if (!(await confirmBox('과제 현황을 초기화할까요?', '모든 학생의 체크가 처음으로 돌아가요.', '초기화'))) return;
