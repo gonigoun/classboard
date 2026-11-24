@@ -1007,3 +1007,14 @@ body.wb-tasks .wb-wrap.full{bottom:50px}
 .tasks.wbbar.closed .tasks-head .chev{transform:rotate(180deg)}
 .tasks.wbbar:not(.closed) .tasks-head .chev{transform:none}
 .tasks.wbbar.closed .prog{position:absolute;left:0;right:0;bottom:0;margin:0;height:5px;border-radius:0}
+
+/* 점심시간: 볼 과제 고르기 */
+.lsel{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:2px 20px 12px}
+.lsel-t{font-size:14px;font-weight:700;color:var(--muted);margin-right:4px}
+.lsel-b{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:2px solid var(--line);background:#fff;font:inherit;font-size:15px;font-weight:700;color:var(--muted);cursor:pointer}
+.lsel-b em{font-style:normal;font-size:12px;font-weight:700;color:var(--muted);background:#F2F4F8;padding:1px 7px;border-radius:99px}
+.lsel-b .bx{width:16px;height:16px;border-radius:5px;border:2px solid #C5CCD8;display:inline-block;position:relative}
+.lsel-b.on{border-color:var(--blue);color:var(--ink);background:#F2F6FF}
+.lsel-b.on .bx{background:var(--blue);border-color:var(--blue)}
+.lsel-b.on .bx::after{content:"";position:absolute;left:4px;top:0;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.lsel-empty{padding:18px 20px 22px;text-align:center;color:var(--muted);font-size:16px}

@@ -278,10 +278,30 @@ function taskPi() {
   if ((ph.kind === 'morning' || ph.kind === 'soon') && isSpecial(table()[ph.next])) return ph.next;
   return null;
 }
+/** 점심시간(지금 시간대로 볼 때): 오늘 과제 중 고른 교시를 함께 보여 줌 */
+function lunchNow() {
+  const ph = S.phase;
+  if (ph.kind === 'break') return !!ph.lunch; // 시간표에 점심시간 칸이 없을 때: 긴 쉬는 시간을 점심으로
+  return ph.kind === 'class' && !ph.pinned && isLunch(table()[ph.cur]);
+}
+const lunchKey = () => 'cb:lunchSel:' + S.dateKey;
+function lunchSel() {
+  try { const v = JSON.parse(localStorage.getItem(lunchKey())); if (Array.isArray(v)) return v; } catch (e) { /* 저장 막힘 */ }
+  return []; // 처음에는 아무것도 고르지 않음 (선생님이 그날 다시 볼 교시를 직접 고름)
+}
+function setLunchSel(v) { try { localStorage.setItem(lunchKey(), JSON.stringify(v)); } catch (e) { /* 저장 막힘 */ } }
+/** 여러 교시를 한 줄로 보는 때(수업 끝·점심시간)에 보여 줄 교시들 */
+function dayPeriods() {
+  const T = table(), all = T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length);
+  if (!lunchNow()) return all;
+  const sel = lunchSel(); return all.filter(([, pi]) => sel.includes(pi));
+}
+const multiNow = () => S.phase.kind === 'end' || lunchNow();
 /** 지금 보여 줄 과제가 있는지 (켜고 끄기와 상관없이) */
 function hasTasksNow() {
   const ph = S.phase;
   if (!S.day) return false;
+  if (lunchNow()) return table().some((p) => tasksOf(p).length);
   if (taskPi() != null) return tasksOf(table()[taskPi()]).length > 0;
   if (ph.kind === 'end') return table().some((p) => tasksOf(p).length);
   return false;
@@ -289,6 +309,7 @@ function hasTasksNow() {
 function tasksVisible() {
   const ph = S.phase;
   if (!S.cfg.showTasks || !S.day) return false;
+  if (lunchNow()) return table().some((p) => tasksOf(p).length);
   if (taskPi() != null) return tasksOf(table()[taskPi()]).length > 0;
   if (ph.kind === 'end') return table().some((p) => tasksOf(p).length);
   return false;
@@ -296,14 +317,15 @@ function tasksVisible() {
 /** 순서대로 과제의 정류장 보기. 수업 끝이면 오늘 과제를 한 줄로 */
 function lineView() {
   const ph = S.phase, T = table();
-  if (ph.kind === 'end') {
-    const st = []; T.forEach((p, pi) => tasksOf(p).forEach((t) => st.push({ label: t, p: p.name, pi })));
+  if (multiNow()) {
+    const PI = dayPeriods().map(([, pi]) => pi); // 보여 줄 교시만 이어서 한 줄로
+    const st = []; PI.forEach((pi) => tasksOf(T[pi]).forEach((t) => st.push({ label: t, p: T[pi].name, pi })));
     const last = st.length;
-    const pos = (k) => { let off = 0; for (let pi = 0; pi < T.length; pi++) { const n = tasksOf(T[pi]).length; const v = posOf(markOf(k), pi); if (v < n) return off + v; off += n; } return last; };
+    const pos = (k) => { let off = 0; for (const pi of PI) { const n = tasksOf(T[pi]).length; const v = posOf(markOf(k), pi); if (v < n) return off + v; off += n; } return last; };
     return {
       day: true, title: '오늘 과제', stations: [...st, { label: '완료' }], last, pos,
-      fwd(k) { for (let pi = 0; pi < T.length; pi++) { const n = tasksOf(T[pi]).length; const v = posOf(markOf(k), pi); if (v < n) { setMark(k, withPos(markOf(k), pi, v + 1)); return true; } } return false; },
-      back(k) { const g = pos(k); if (!g) return false; const t = g - 1; let off = 0; for (let pi = 0; pi < T.length; pi++) { const n = tasksOf(T[pi]).length; if (t < off + n) { setMark(k, withPos(markOf(k), pi, t - off)); return true; } off += n; } return false; },
+      fwd(k) { for (const pi of PI) { const n = tasksOf(T[pi]).length; const v = posOf(markOf(k), pi); if (v < n) { setMark(k, withPos(markOf(k), pi, v + 1)); return true; } } return false; },
+      back(k) { const g = pos(k); if (!g) return false; const t = g - 1; let off = 0; for (const pi of PI) { const n = tasksOf(T[pi]).length; if (t < off + n) { setMark(k, withPos(markOf(k), pi, t - off)); return true; } off += n; } return false; },
     };
   }
   const pi = taskPi(), p = T[pi], last = tasksOf(p).length;
@@ -323,6 +345,15 @@ function flip(before) {
 }
 const phoneDot = (k) => (S.seats[String(k + 1)] ? ' ph' : '');
 let lastDoneAll = false;
+/** 점심시간에 볼 교시 고르기 (누를 때마다 넣고 빼기) */
+function lunchPicker() {
+  const T = table(), sel = lunchSel(), names = roster();
+  const list = T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length);
+  return `<div class="lsel"><span class="lsel-t">볼 과제 고르기</span>${list.map(([p, pi]) => {
+    const left = names.filter((n, k) => n && !isDone(p, markOf(k), pi)).length;
+    return `<button class="lsel-b ${sel.includes(pi) ? 'on' : ''}" data-lp="${pi}"><i class="bx"></i>${esc(p.name)}${p.subject && p.subject !== p.name ? ` ${esc(p.subject)}` : ''}<em>${left ? `${left}명 남음` : '모두 완료'}</em></button>`;
+  }).join('')}</div>`;
+}
 
 function drawTasks(animate) {
   const el = $('#tasks');
@@ -342,11 +373,12 @@ function drawTasks(animate) {
   el.classList.remove('off');
   el.style.display = '';
   const ph = S.phase, T = table(), names = roster();
-  const tpi = taskPi(), periods = ph.kind === 'end' ? T.map((p, pi) => [p, pi]).filter(([p]) => tasksOf(p).length) : [[T[tpi], tpi]];
+  const multi = multiNow(), lunch = lunchNow();
+  const tpi = taskPi(), periods = multi ? dayPeriods() : [[T[tpi], tpi]];
   const useGrid = periods.some(([p]) => isPick(p));
-  const doneAll = (k) => periods.every(([p, pi]) => isDone(p, markOf(k), pi));
+  const doneAll = (k) => periods.length > 0 && periods.every(([p, pi]) => isDone(p, markOf(k), pi)); // 고른 교시가 없으면 완료로 세지 않음
   const done = names.filter((n, k) => n && doneAll(k)).length, total = names.filter((n) => n).length; // 명단 빈 번호는 빼고 셈
-  const title = ph.kind === 'end' ? '오늘 과제' : `${T[tpi].name} 과제${isPick(T[tpi]) ? ` · 골라서 ${needOf(T[tpi])}개` : ''}`;
+  const title = lunch ? '점심시간 · 오늘 과제' : ph.kind === 'end' ? '오늘 과제' : `${T[tpi].name} 과제${isPick(T[tpi]) ? ` · 골라서 ${needOf(T[tpi])}개` : ''}`;
   const before = animate && !useGrid ? rects() : null;
   const bar = wbBar(), closed = bar ? !S.wbTasksOpen : S.cfg.tasksClosed && !S.tasksFull;
   document.body.classList.toggle('wb-tasks', bar);
@@ -354,9 +386,11 @@ function drawTasks(animate) {
   el.classList.toggle('full', S.tasksFull);
   el.classList.toggle('wbbar', bar);
   let body;
-  if (useGrid) {
+  if (!periods.length) {
+    body = `<div class="lsel-empty">위 <b>볼 과제 고르기</b>에서 다시 볼 교시를 눌러 주세요</div>`;
+  } else if (useGrid) {
     // 골라서 하는 과제: 학생 × 과제 표, 칸을 눌러 체크
-    body = `<div class="tgrid"><table><thead>${ph.kind === 'end' ? `<tr><th></th>${periods.map(([p]) => `<th colspan="${tasksOf(p).length}" class="pg">${esc(p.name)} ${esc(p.subject)}${isPick(p) ? ` · ${needOf(p)}개` : ''}</th>`).join('')}<th></th></tr>` : ''}
+    body = `<div class="tgrid"><table><thead>${multi ? `<tr><th></th>${periods.map(([p]) => `<th colspan="${tasksOf(p).length}" class="pg">${esc(p.name)} ${esc(p.subject)}${isPick(p) ? ` · ${needOf(p)}개` : ''}</th>`).join('')}<th></th></tr>` : ''}
       <tr><th class="nm">학생</th>${periods.map(([p]) => tasksOf(p).map((t) => `<th>${esc(t)}</th>`).join('')).join('')}<th>완료</th></tr></thead><tbody>
       ${names.map((n, k) => (!n ? '' : `<tr class="${doneAll(k) ? 'ok' : ''}"><td class="nm"><span class="tag${phoneDot(k)}"><small>${k + 1}</small>${esc(n)}</span></td>
         ${periods.map(([p, pi]) => tasksOf(p).map((_, ti) => `<td><button class="ck ${isChecked(p, markOf(k), pi, ti) ? 'on' : ''}" data-k="${k}" data-pi="${pi}" data-ti="${ti}" aria-label="${esc(n)} ${ti + 1}번 과제">${ic('flag')}</button></td>`).join('')).join('')}
@@ -377,11 +411,17 @@ function drawTasks(animate) {
       <h2>${esc(title)}</h2><span class="cnt num">${done}/${total}</span>
       <span class="sp"></span>
       ${bar ? '' : `<button class="reset" data-a="full">${ic('full')}${S.tasksFull ? '원래 크기' : '크게 보기'}</button>`}
-      <button class="reset" data-a="reset">${ic('reset')}${ph.kind === 'end' ? '오늘 과제 현황 초기화' : '이 과제 현황 초기화'}</button>
+      <button class="reset" data-a="reset">${ic('reset')}${lunch ? '보이는 과제 현황 초기화' : ph.kind === 'end' ? '오늘 과제 현황 초기화' : '이 과제 현황 초기화'}</button>
       ${S.tasksFull ? '' : '<svg class="i chev"><use href="#i-chev"/></svg>'}
     </div>
     <div class="prog" style="${closed ? '' : 'display:none'}"><i style="width:${total ? done / total * 100 : 0}%"></i></div>
-    <div class="tasks-body"><div>${body}</div></div>`;
+    <div class="tasks-body"><div>${lunch ? lunchPicker() : ''}${body}</div></div>`;
+  el.querySelectorAll('[data-lp]').forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation(); const pi = +b.dataset.lp, cur = lunchSel();
+      setLunchSel(cur.includes(pi) ? cur.filter((x) => x !== pi) : [...cur, pi].sort((a, b2) => a - b2)); drawTasks();
+    };
+  });
   el.querySelector('[data-a=th]').onclick = (e) => {
     if (e.target.closest('button') || S.tasksFull) return;
     let c;
