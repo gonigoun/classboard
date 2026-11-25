@@ -176,11 +176,15 @@ export function openPick() {
 }
 
 /* ---------- 빠른 체크 (저장하지 않는 '했어요' 확인) ---------- */
-// 노트 정리·설문 참여처럼 과제가 아닌 것을 그 자리에서 확인할 때 씀.
+// 노트 정리·설문 참여처럼 과제가 아닌 것을 그 자리에서 확인할 때 씀. 개인별 또는 모둠별로 체크.
 // 창을 닫았다 열어도 이 화면을 새로고침하기 전까지는 그대로 있고, 어디에도 저장하지 않음.
-const QC = { title: '', done: [] }; // done: 한 순서대로 학생 번호
+// (모둠 수만 이 기기에 기억해 둠)
+const lsNum = (k, d) => { try { const v = +localStorage.getItem(k); return v || d; } catch (e) { return d; } };
+const QC = { title: '', mode: 'p', done: [], gdone: [], groups: lsNum('cb:qcGroups', 6) }; // done·gdone: 한 순서대로 번호
 export function openCheck() {
   openWin('qcheck', '빠른 체크', 'tasks', `<input class="qc-title" data-r="t" maxlength="30" placeholder="무엇을 확인할까요? 예: 노트 정리, 설문 참여">
+     <div class="qc-mode"><div class="seg" data-r="mode"><button data-m="p">개인별</button><button data-m="g">모둠별</button></div>
+       <label class="qc-gn" data-r="gnw">모둠 수 <select data-r="gn">${[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option value="${n}">${n}모둠</option>`).join('')}</select></label></div>
      <div class="qc-cnt" data-r="c"></div>
      <div class="qc-sec todo"><b>아직</b><div class="qc-tags" data-r="todo"></div></div>
      <div class="qc-sec done"><b>했어요 <small>먼저 한 순서</small></b><div class="qc-tags" data-r="done"></div></div>
@@ -190,25 +194,38 @@ export function openCheck() {
     const t = q('t'); t.value = QC.title;
     t.oninput = () => { QC.title = t.value; };
     t.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') t.blur(); }; // 판서 단축키로 새지 않게
-    const tag = (k, n, i) => `<button class="qc-tag" data-k="${k}">${i != null ? `<em>${i}</em>` : `<span>${k + 1}</span>`}${esc(n)}</button>`; // 했어요 칸은 순서만
+    const gn = q('gn'); gn.value = String(QC.groups);
+    gn.onchange = () => { QC.groups = +gn.value; QC.gdone = QC.gdone.filter((k) => k < QC.groups); try { localStorage.setItem('cb:qcGroups', gn.value); } catch (e) { /* 저장 막힘 */ } draw(); };
+    w.querySelectorAll('[data-m]').forEach((b) => { b.onclick = () => { QC.mode = b.dataset.m; draw(); }; });
+    // 개인: 작은 번호 + 이름 / 모둠: 'n모둠'. 했어요 칸은 순서 동그라미만
+    const tag = (k, n, i, small) => `<button class="qc-tag" data-k="${k}">${i != null ? `<em>${i}</em>` : small ? `<span>${small}</span>` : ''}${esc(n)}</button>`;
     const draw = () => {
-      const names = ctx.roster(), all = names.map((n, k) => [n, k]).filter(([n]) => n);
-      if (!all.length) { q('todo').innerHTML = '<div class="note">시간표 설정에서 학생 명단을 먼저 넣어 주세요</div>'; q('c').textContent = ''; return; }
-      QC.done = QC.done.filter((k) => names[k]);
-      q('todo').innerHTML = all.filter(([, k]) => !QC.done.includes(k)).map(([n, k]) => tag(k, n)).join('') || '<div class="qc-all">모두 했어요! 🎉</div>';
-      q('done').innerHTML = QC.done.map((k, i) => tag(k, names[k], i + 1)).join('');
-      q('todo').parentElement.classList.toggle('empty', QC.done.length === all.length); // 모두 하면 분홍 칸도 차분하게
-      q('c').innerHTML = `<b>${QC.done.length}</b> / ${all.length}명 했어요`;
+      const g = QC.mode === 'g';
+      w.querySelectorAll('[data-m]').forEach((b) => b.classList.toggle('sel', b.dataset.m === QC.mode));
+      q('gnw').hidden = !g; w.classList.toggle('qc-g', g);
+      let all, label;
+      if (g) { all = Array.from({ length: QC.groups }, (_, k) => [`${k + 1}모둠`, k]); label = (k) => `${k + 1}모둠`; }
+      else {
+        const names = ctx.roster(); all = names.map((n, k) => [n, k]).filter(([n]) => n); label = (k) => names[k];
+        if (!all.length) { q('todo').innerHTML = '<div class="note">시간표 설정에서 학생 명단을 먼저 넣어 주세요</div>'; q('done').innerHTML = ''; q('c').textContent = ''; return; }
+        QC.done = QC.done.filter((k) => names[k]);
+      }
+      const D = g ? QC.gdone : QC.done;
+      q('todo').innerHTML = all.filter(([, k]) => !D.includes(k)).map(([n, k]) => tag(k, n, null, g ? 0 : k + 1)).join('') || '<div class="qc-all">모두 했어요! 🎉</div>';
+      q('done').innerHTML = D.map((k, i) => tag(k, label(k), i + 1)).join('');
+      q('todo').parentElement.classList.toggle('empty', D.length === all.length); // 모두 하면 분홍 칸도 차분하게
+      q('c').innerHTML = `<b>${D.length}</b> / ${all.length}${g ? '모둠' : '명'} 했어요`;
       w.querySelectorAll('.qc-tag').forEach((b) => {
         b.onclick = () => {
-          const k = +b.dataset.k, was = QC.done.includes(k);
-          QC.done = was ? QC.done.filter((x) => x !== k) : [...QC.done, k];
-          if (!was) { fx('tick', 3); if (QC.done.length === all.length) { confetti(); fx('win'); } }
+          const k = +b.dataset.k, cur = g ? QC.gdone : QC.done, was = cur.includes(k);
+          const nx = was ? cur.filter((x) => x !== k) : [...cur, k];
+          if (g) QC.gdone = nx; else QC.done = nx;
+          if (!was) { fx('tick', 3); if (nx.length === all.length) { confetti(); fx('win'); } }
           draw();
         };
       });
     };
-    q('rs').onclick = () => { QC.title = ''; QC.done = []; t.value = ''; draw(); t.focus(); };
+    q('rs').onclick = () => { QC.title = ''; QC.done = []; QC.gdone = []; t.value = ''; draw(); t.focus(); };
     draw();
     if (!QC.title) setTimeout(() => t.focus(), 50);
   });

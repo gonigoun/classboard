@@ -1053,3 +1053,8 @@ body.wb-tasks .wb-wrap.full{bottom:50px}
 .qc-all{font-size:.95em;font-weight:700;color:#fff;padding:.15em 2px}
 .win.qc .row{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
 .win.qc .row .note{margin:0}
+.qc-mode{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px}
+.qc-gn{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--muted)}
+.qc-gn[hidden]{display:none}
+.qc-gn select{font:inherit;font-size:15px;padding:5px 8px;border:2px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+.win.qc.qc-g .qc-tag{font-size:1.15em;padding:.35em .85em}
