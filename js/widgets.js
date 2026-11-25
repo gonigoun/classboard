@@ -213,7 +213,7 @@ export function openCheck() {
       const D = g ? QC.gdone : QC.done;
       q('todo').innerHTML = all.filter(([, k]) => !D.includes(k)).map(([n, k]) => tag(k, n, null, g ? 0 : k + 1)).join('') || '<div class="qc-all">모두 했어요! 🎉</div>';
       q('done').innerHTML = D.map((k, i) => tag(k, label(k), i + 1)).join('');
-      q('todo').parentElement.classList.toggle('empty', D.length === all.length); // 모두 하면 분홍 칸도 차분하게
+      q('todo').parentElement.classList.toggle('empty', D.length === all.length); // 모두 하면 노랑 칸도 차분하게
       q('c').innerHTML = `<b>${D.length}</b> / ${all.length}${g ? '모둠' : '명'} 했어요`;
       w.querySelectorAll('.qc-tag').forEach((b) => {
         b.onclick = () => {
