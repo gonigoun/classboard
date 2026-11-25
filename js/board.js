@@ -3,8 +3,8 @@ import { $, $$, ic, esc, toast, confetti, confirmBox, setWinStore, closeWin, tim
 import { WEEKDAYS, sampleConfig, normalizeConfig, clone, ymd, semesterStart, getPhase, jumpGroups, mmss, isMorning, isLunch, isSpecial } from './data.js';
 import { BELLS, ringBell, FX, setVolume, unlockAudio } from './sound.js';
 import * as store from './store.js';
-import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets, setWbHead, onWbFull, isPhone, setWbSync, applyRemote, setTvRatio, myRatio, setWbBell, ringWbBell } from './whiteboard.js';
-import { initWidgets, applyBg, applyTheme, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer } from './widgets.js';
+import { getWB, fitWB, setWbFull, wbIsFull, setWbWidgets, setWbHead, onWbFull, isPhone, setWbSync, applyRemote, setTvRatio, myRatio, setWbBell, ringWbBell, setWbCheck } from './whiteboard.js';
+import { initWidgets, applyBg, applyTheme, openBg, openPick, openNoise, openLight, openTimer, applyRemoteTimer, openCheck } from './widgets.js';
 import { initSettings, openSettings } from './settings.js';
 import { openHistory } from './history.js';
 import { initClassroom, openStudents, openMessages, onSeats, onMsgs, unreadCount, syncNames } from './classroom.js';
@@ -690,6 +690,7 @@ export async function startBoard(user) {
   });
   // 판서를 크게 볼 때도 판서 위쪽 막대에서 위젯을 바로 열 수 있게
   setWbWidgets([['clock', '타이머', openTimer], ['dice', '이름 뽑기', openPick], ['mic', '소음', openNoise], ['light', '신호등', openLight]]);
+  setWbCheck(openCheck);
   if (user) {
     onSeats((seats) => { S.seats = seats; drawTasks(); });
     onMsgs(() => drawBar());

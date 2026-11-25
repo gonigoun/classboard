@@ -99,6 +99,9 @@ function drawWbWidgets() {
 /** 판서 크게 보기에서도 보이는 집중 종 버튼 */
 let bellFn = null;
 export function setWbBell(fn) { bellFn = fn; }
+/** 판서 막대의 '빠른 체크' 버튼이 여는 창 */
+let qcFn = null;
+export function setWbCheck(fn) { qcFn = fn; }
 export function ringWbBell() { const b = wbEl && wbEl.querySelector('.wb-bell'); if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
 
 /** 여러 화면 연동: s = { put(item), del(id), clear() } — 내가 그린 것을 보냄 */
@@ -118,6 +121,7 @@ function buildWB() {
        <button class="tb" data-r="undo" title="되돌리기">${ic('undo')}</button>
        <button class="tb" data-r="img" title="그림 파일 넣기">${ic('image')}<span>그림</span></button>
        <button class="tb" data-r="clear" title="모두 지우기">${ic('trash')}</button>
+       <button class="tb qc-btn" data-r="qc" title="했는지 빠르게 체크 (저장 안 함)">${ic('tasks')}<span>빠른 체크</span></button>
        <button class="tb" data-r="full">${ic('full')}<span>크게 보기</span></button>
        <input type="file" data-r="file" accept="image/*" hidden>
      </div>
@@ -520,6 +524,7 @@ function buildWB() {
   WB.clearLocal = () => { WB.strokes = []; WB.hist = []; objs.innerHTML = ''; select(null); redraw(); };
   q('clear').onclick = () => { WB.clearLocal(); if (sync) sync.clear(); };
   q('img').onclick = () => q('file').click();
+  q('qc').onclick = () => { if (qcFn) qcFn(); };
   q('file').onchange = (e) => { const f = e.target.files[0]; if (f) addImage(URL.createObjectURL(f)); e.target.value = ''; };
   q('full').onclick = () => setWbFull(!wbEl.classList.contains('full'));
   q('close').onclick = () => setWbFull(false);

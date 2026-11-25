@@ -1021,3 +1021,23 @@ body.wb-tasks .wb-wrap.full{bottom:50px}
 
 /* 수업 2분 전: 과목 뒤 '준비' */
 .lesson .subject .prep{margin-left:.3em;color:#E8734A}
+
+/* 판서: 빠른 체크 (저장 안 함) */
+.wb-bar .qc-btn{background:#FFF1E8;color:#C2562E;border-color:transparent}
+.win.qc{width:600px}
+.qc-title{width:100%;font:inherit;font-family:var(--title);font-size:24px;padding:8px 12px;border:2px solid var(--line);border-radius:12px;outline:none}
+.qc-title:focus{border-color:var(--blue)}
+.qc-cnt{margin:8px 2px 4px;font-size:16px;color:var(--muted)}
+.qc-cnt b{font-size:26px;color:var(--blue-deep);font-family:var(--title)}
+.qc-sec{margin-top:8px}
+.qc-sec>b{display:block;font-size:14px;color:var(--muted);margin:0 2px 6px}
+.qc-sec>b small{font-weight:400;margin-left:4px}
+.qc-sec.done{border-top:2px dashed var(--line);padding-top:10px}
+.qc-tags{display:flex;flex-wrap:wrap;gap:6px;min-height:36px}
+.qc-tag{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:999px;border:2px solid var(--line);background:#fff;font:inherit;font-size:19px;font-weight:700;color:var(--ink);cursor:pointer}
+.qc-tag span{font-size:12px;color:var(--muted);font-weight:700}
+.qc-tag em{font-style:normal;font-size:12px;background:#2FA36B;color:#fff;border-radius:99px;min-width:20px;height:20px;display:inline-grid;place-items:center;padding:0 5px}
+.qc-sec.done .qc-tag{background:#E9F8EF;border-color:#9AD9B4;color:#1E7A4C}
+.qc-all{font-size:18px;font-weight:700;color:#1E7A4C;padding:4px 2px}
+.win.qc .row{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.win.qc .row .note{margin:0}
