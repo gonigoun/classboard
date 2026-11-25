@@ -1035,11 +1035,11 @@ body.wb-tasks .wb-wrap.full{bottom:50px}
 .qc-sec>b small{font-weight:400;font-size:.85em;opacity:.8}
 .qc-sec>b::before{content:"";width:.7em;height:.7em;border-radius:50%}
 /* 아직: 따뜻한 주황 / 했어요: 초록 */
-.qc-sec.todo{background:#FFF3EA;border:2px solid #FFD2B8}
-.qc-sec.todo>b{color:#C2562E}
+.qc-sec.todo{background:#FFD9BF;border:2px solid #FFA772}
+.qc-sec.todo>b{color:#A8441F}
 .qc-sec.todo>b::before{background:#FF8A50}
-.qc-sec.done{background:#E6F7EE;border:2px solid #9AD9B4}
-.qc-sec.done>b{color:#1E7A4C}
+.qc-sec.done{background:#BDEBD0;border:2px solid #5FC28A}
+.qc-sec.done>b{color:#17653E}
 .qc-sec.done>b::before{background:#2FA36B}
 .qc-tags{display:flex;flex-wrap:wrap;gap:.35em;min-height:1.8em}
 .qc-tag{display:inline-flex;align-items:center;gap:.25em;padding:.28em .65em;border-radius:999px;border:2px solid #FFD2B8;background:#fff;font:inherit;font-size:1em;font-weight:700;color:var(--ink);cursor:pointer}
