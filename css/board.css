@@ -1018,3 +1018,6 @@ body.wb-tasks .wb-wrap.full{bottom:50px}
 .lsel-b.on .bx{background:var(--blue);border-color:var(--blue)}
 .lsel-b.on .bx::after{content:"";position:absolute;left:4px;top:0;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .lsel-empty{padding:18px 20px 22px;text-align:center;color:var(--muted);font-size:16px}
+
+/* 수업 2분 전: 과목 뒤 '준비' */
+.lesson .subject .prep{margin-left:.3em;color:#E8734A}
