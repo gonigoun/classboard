@@ -197,6 +197,7 @@ export function openCheck() {
       QC.done = QC.done.filter((k) => names[k]);
       q('todo').innerHTML = all.filter(([, k]) => !QC.done.includes(k)).map(([n, k]) => tag(k, n)).join('') || '<div class="qc-all">모두 했어요! 🎉</div>';
       q('done').innerHTML = QC.done.map((k, i) => tag(k, names[k], i + 1)).join('');
+      q('todo').parentElement.classList.toggle('empty', QC.done.length === all.length); // 모두 하면 분홍 칸도 차분하게
       q('c').innerHTML = `<b>${QC.done.length}</b> / ${all.length}명 했어요`;
       w.querySelectorAll('.qc-tag').forEach((b) => {
         b.onclick = () => {
