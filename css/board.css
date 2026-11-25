@@ -1046,7 +1046,7 @@ body.wb-tasks .wb-wrap.full{bottom:50px}
 .qc-sec.done>b{color:#fff}
 .qc-sec.done>b::before{background:#fff}
 .qc-tags{display:flex;flex-wrap:wrap;gap:.35em;min-height:1.8em}
-.qc-tag{display:inline-flex;align-items:center;gap:.25em;padding:.28em .65em;border-radius:999px;border:2px solid #fff;background:#fff;font:inherit;font-size:1em;font-weight:700;color:var(--ink);cursor:pointer}
+.qc-tag{display:inline-flex;align-items:center;gap:.25em;padding:.3em .65em;border-radius:.45em;border:2px solid #fff;background:#fff;font:inherit;font-size:1em;font-weight:700;color:var(--ink);cursor:pointer}
 .qc-tag span{font-size:.62em;color:var(--muted);font-weight:700}
 .qc-tag em{font-style:normal;font-size:.62em;background:#1B4965;color:#fff;border-radius:99px;min-width:1.6em;height:1.6em;display:inline-grid;place-items:center;padding:0 .3em}
 .qc-sec.done .qc-tag{background:#fff;border-color:#fff;color:#1B4965}
