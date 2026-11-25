@@ -191,7 +191,7 @@ function wbHead() {
     return `<div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}${isSpecial(p) && !ph.pinned ? left(`${esc(p.name)} 남은 시간`) : ''}`;
   }
   const p = T[ph.next] || {};
-  const title = ph.kind === 'break' ? (ph.lunch ? '점심시간' : '쉬는 시간') : ph.kind === 'soon' ? `곧 ${esc(p.name)}` : '좋은 아침이에요';
+  const title = ph.kind === 'break' ? (ph.lunch ? '점심시간' : '쉬는 시간') : ph.kind === 'soon' ? (isSpecial(p) ? `곧 ${esc(p.name)}` : `${esc(p.subject || p.name)} 준비`) : '좋은 아침이에요';
   return `<div class="subject wb-ph ${ph.kind}">${title}</div>${left(`${esc(p.name)}${p.subject ? ' ' + esc(p.subject) : ''}까지`)}`;
 }
 const wbBtn = () => `<button class="wb-toggle ${S.wbOn ? 'on' : ''}" data-a="wb">${ic('pen')}판서</button>`;
@@ -218,7 +218,9 @@ function drawStage() {
     } else h += `<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
   } else if (ph.kind === 'soon') {
     const p = T[ph.next];
-    h = `<div class="band soon">${ic('bell')}곧 ${esc(p.name)}</div>${wbBtn()}<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}</div>${chips(p)}</div></div>`;
+    // 수업 2분 전: 과목 뒤에 '준비'를 붙여 아이들이 준비하고 앉도록
+    const prep = isSpecial(p) ? '' : `<span class="prep">준비</span>`;
+    h = `<div class="band soon">${ic('bell')}곧 ${esc(p.name)}</div>${wbBtn()}<div class="stage-body"><div class="lesson pop"><div class="subject">${esc(p.subject || p.name)}${prep}</div>${chips(p)}</div></div>`;
   } else if (ph.kind === 'break') {
     const p = T[ph.next], tt = S.cfg.timerType;
     // 숫자만 고르면 큰 숫자 하나만 보여 줌 (글자·숫자·준비물이 겹치지 않게 세로로 쌓음)
