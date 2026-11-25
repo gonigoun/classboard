@@ -182,7 +182,7 @@ const QC = { title: '', done: [] }; // done: 한 순서대로 학생 번호
 export function openCheck() {
   openWin('qcheck', '빠른 체크', 'tasks', `<input class="qc-title" data-r="t" maxlength="30" placeholder="무엇을 확인할까요? 예: 노트 정리, 설문 참여">
      <div class="qc-cnt" data-r="c"></div>
-     <div class="qc-sec"><b>아직</b><div class="qc-tags" data-r="todo"></div></div>
+     <div class="qc-sec todo"><b>아직</b><div class="qc-tags" data-r="todo"></div></div>
      <div class="qc-sec done"><b>했어요 <small>먼저 한 순서</small></b><div class="qc-tags" data-r="done"></div></div>
      <div class="row"><button class="btn ghost" data-r="rs">${ic('reset')}새로 시작</button><span class="note">저장되지 않아요 · 이름을 누르면 바뀌어요</span></div>`, (w) => {
     w.classList.add('qc');
@@ -197,6 +197,7 @@ export function openCheck() {
       QC.done = QC.done.filter((k) => names[k]);
       q('todo').innerHTML = all.filter(([, k]) => !QC.done.includes(k)).map(([n, k]) => tag(k, n)).join('') || '<div class="qc-all">모두 했어요! 🎉</div>';
       q('done').innerHTML = QC.done.map((k, i) => tag(k, names[k], i + 1)).join('');
+      q('todo').parentElement.classList.toggle('empty', QC.done.length === all.length); // 모두 하면 분홍 칸도 차분하게
       q('c').innerHTML = `<b>${QC.done.length}</b> / ${all.length}명 했어요`;
       w.querySelectorAll('.qc-tag').forEach((b) => {
         b.onclick = () => {
