@@ -1034,10 +1034,10 @@ body.wb-tasks .wb-wrap.full{bottom:50px}
 .qc-sec>b{display:flex;align-items:center;gap:.35em;font-size:.72em;margin:0 0 .45em}
 .qc-sec>b small{font-weight:400;font-size:.85em;opacity:.8}
 .qc-sec>b::before{content:"";width:.7em;height:.7em;border-radius:50%}
-/* 아직: 눈에 띄는 형광 분홍 / 했어요: 편안한 진한 남색 */
-.qc-sec.todo{background:#FF3FA4;border:2px solid #FF8FD0;box-shadow:0 0 18px rgba(255,63,164,.5)}
-.qc-sec.todo>b{color:#fff}
-.qc-sec.todo>b::before{background:#fff}
+/* 아직: 눈에 띄는 형광 노랑 / 했어요: 편안한 진한 남색 */
+.qc-sec.todo{background:#FFD60A;border:2px solid #FFE766;box-shadow:0 0 18px rgba(255,214,10,.55)}
+.qc-sec.todo>b{color:#3B2F00}
+.qc-sec.todo>b::before{background:#3B2F00}
 .qc-sec.todo.empty{background:#EEF3F8;border-color:#D5DFEA;box-shadow:none}
 .qc-sec.todo.empty>b{color:#1B4965}
 .qc-sec.todo.empty>b::before{background:#1B4965}
