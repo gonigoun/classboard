@@ -175,6 +175,44 @@ export function openPick() {
   });
 }
 
+/* ---------- 빠른 체크 (저장하지 않는 '했어요' 확인) ---------- */
+// 노트 정리·설문 참여처럼 과제가 아닌 것을 그 자리에서 확인할 때 씀.
+// 창을 닫았다 열어도 이 화면을 새로고침하기 전까지는 그대로 있고, 어디에도 저장하지 않음.
+const QC = { title: '', done: [] }; // done: 한 순서대로 학생 번호
+export function openCheck() {
+  openWin('qcheck', '빠른 체크', 'tasks', `<input class="qc-title" data-r="t" maxlength="30" placeholder="무엇을 확인할까요? 예: 노트 정리, 설문 참여">
+     <div class="qc-cnt" data-r="c"></div>
+     <div class="qc-sec"><b>아직</b><div class="qc-tags" data-r="todo"></div></div>
+     <div class="qc-sec done"><b>했어요 <small>먼저 한 순서</small></b><div class="qc-tags" data-r="done"></div></div>
+     <div class="row"><button class="btn ghost" data-r="rs">${ic('reset')}새로 시작</button><span class="note">저장되지 않아요 · 이름을 누르면 바뀌어요</span></div>`, (w) => {
+    w.classList.add('qc');
+    const q = (r) => w.querySelector(`[data-r=${r}]`);
+    const t = q('t'); t.value = QC.title;
+    t.oninput = () => { QC.title = t.value; };
+    t.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') t.blur(); }; // 판서 단축키로 새지 않게
+    const tag = (k, n, i) => `<button class="qc-tag" data-k="${k}">${i != null ? `<em>${i}</em>` : `<span>${k + 1}</span>`}${esc(n)}</button>`; // 했어요 칸은 순서만
+    const draw = () => {
+      const names = ctx.roster(), all = names.map((n, k) => [n, k]).filter(([n]) => n);
+      if (!all.length) { q('todo').innerHTML = '<div class="note">시간표 설정에서 학생 명단을 먼저 넣어 주세요</div>'; q('c').textContent = ''; return; }
+      QC.done = QC.done.filter((k) => names[k]);
+      q('todo').innerHTML = all.filter(([, k]) => !QC.done.includes(k)).map(([n, k]) => tag(k, n)).join('') || '<div class="qc-all">모두 했어요! 🎉</div>';
+      q('done').innerHTML = QC.done.map((k, i) => tag(k, names[k], i + 1)).join('');
+      q('c').innerHTML = `<b>${QC.done.length}</b> / ${all.length}명 했어요`;
+      w.querySelectorAll('.qc-tag').forEach((b) => {
+        b.onclick = () => {
+          const k = +b.dataset.k, was = QC.done.includes(k);
+          QC.done = was ? QC.done.filter((x) => x !== k) : [...QC.done, k];
+          if (!was) { fx('tick', 3); if (QC.done.length === all.length) { confetti(); fx('win'); } }
+          draw();
+        };
+      });
+    };
+    q('rs').onclick = () => { QC.title = ''; QC.done = []; t.value = ''; draw(); t.focus(); };
+    draw();
+    if (!QC.title) setTimeout(() => t.focus(), 50);
+  });
+}
+
 /* ---------- 신호등 ---------- */
 export function openLight() {
   const L = ctx.cfg().light;
